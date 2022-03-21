@@ -24,30 +24,21 @@ class PTDeep(nn.Module):
     def forward(self, X):
         # unaprijedni prolaz modela: izračunati vjerojatnosti
 
-        s = X.double()
-        for weight, bias in zip(self.weights, self.biases):
-            s = s.mm(weight.double()) + bias
-            s = self.activation_fun(s)
+        s = X
+        params = len(self.weights)
+        for i, (weight, bias) in enumerate(zip(self.weights, self.biases)):
+            s = s.mm(weight) + bias
+            if i < params - 1:
+                s = self.activation_fun(s)
 
-        prob = torch.softmax(s, dim=1)
-
-        return prob
-
-    def get_loss(self, X, Yoh_):
-        prob = self.forward(X)
-
-        log_prob = torch.log(prob) * Yoh_
-        log_sum = torch.sum(log_prob, dim=1)
-        log_prob_mean = torch.mean(log_sum)
-
-        return -log_prob_mean
+        return s
 
     def count_params(self):
         for name, param, in self.named_parameters():
             print(f'{name}:{param}\n')
 
 
-def train(model, X, Yoh_, param_niter, param_delta, param_lambda):
+def train(model, X, Y, param_niter, param_delta, param_lambda):
     """Arguments:
        - X: model inputs [NxD], type: torch.Tensor
        - Yoh_: ground truth [NxC], type: torch.Tensor
@@ -57,12 +48,13 @@ def train(model, X, Yoh_, param_niter, param_delta, param_lambda):
 
     # inicijalizacija optimizatora
     optimizer = optim.SGD(model.parameters(), lr=param_delta)
+    criterion = nn.CrossEntropyLoss(label_smoothing=param_lambda)
 
     # petlja učenja
     # ispisujte gubitak tijekom učenja
     for i in range(int(param_niter)):
-        loss = model.get_loss(X, Yoh_) + param_lambda * np.sum(
-            [torch.norm(weight).detach().numpy() for weight in model.weights])
+        y_pred = model(X)
+        loss = criterion(y_pred, Y)
 
         loss.backward()
 
@@ -81,46 +73,41 @@ def eval(model, X):
     """
     # ulaz je potrebno pretvoriti u torch.Tensor
     # izlaze je potrebno pretvoriti u numpy.array
-    res = model.forward(X).detach().numpy()
-
-    return np.argmax(res, axis=1)
+    with torch.no_grad():
+        y_predicted = model(X).detach().numpy()
+        return np.argmax(y_predicted, axis=1)
     # koristite torch.Tensor.detach() i torch.Tensor.numpy()
 
 
 if __name__ == "__main__":
-    # inicijaliziraj generatore slučajnih brojeva
     torch.manual_seed(100)
     np.random.seed(100)
 
-    # instanciraj podatke X i labele Yoh_
     X, Y_ = data.sample_gmm_2d(4, 2, 40)
 
-    Yoh_ = data.class_to_onehot(Y_)
+    X_tensor = torch.from_numpy(X.astype(np.float32))
+    Y_tensor = torch.from_numpy(Y_.astype(np.int64))
 
-    X_tensor = torch.from_numpy(X)
-    Yoh_ = torch.from_numpy(Yoh_)
+    configs = [[2, 2], [2, 10, 2], [2, 10, 10, 2]]
 
-    # definiraj model:
-    ptdeep = PTDeep([2, 10, 10, 2], torch.relu)
-    ptdeep.count_params()
+    for config in configs:
+        print(f'Config: {config}\n')
 
-    # nauči parametre (X i Yoh_ moraju biti tipa torch.Tensor):
-    train(ptdeep, X_tensor, Yoh_, param_niter=1e4, param_delta=0.1, param_lambda=1e-4)
+        ptdeep = PTDeep(config, torch.relu)
+        ptdeep.count_params()
 
-    # dohvati vjerojatnosti na skupu za učenje
-    probs = eval(ptdeep, X_tensor)
+        train(ptdeep, X_tensor, Y_tensor, param_niter=1e4, param_delta=0.1, param_lambda=1e-4)
 
-    # ispiši performansu (preciznost i odziv po razredima)
+        y_predicted = eval(ptdeep, X_tensor)
 
-    acc, precission_recall, conf_matrix = data.eval_perf_multi(probs, Y_)
+        # ispiši performansu (preciznost i odziv po razredima)
+        acc, precission_recall, conf_matrix = data.eval_perf_multi(y_predicted, Y_)
 
-    print(f'accuracy:{acc}\nprecission and recall per class:{precission_recall}\nconfusion matrix:{conf_matrix}')
+        print(f'accuracy:{acc}\nprecission and recall per class:{precission_recall}\nconfusion matrix:\n{conf_matrix}')
 
-    # iscrtaj rezultate, decizijsku plohu
-    rect = (np.min(X, axis=0), np.max(X, axis=0))
-    data.graph_surface(lambda x: eval(ptdeep, torch.from_numpy(x)), rect, offset=0)
+        # iscrtaj rezultate, decizijsku plohu
+        rect = (np.min(X, axis=0), np.max(X, axis=0))
+        data.graph_surface(lambda x: eval(ptdeep, torch.from_numpy(x.astype(np.float32))), rect, offset=0)
+        data.graph_data(X, Y_, y_predicted, special=[])
 
-    # graph the data points
-    data.graph_data(X, Y_, probs, special=[])
-
-    plt.show()
+        plt.show()

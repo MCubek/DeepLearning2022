@@ -5,15 +5,14 @@ import matplotlib.pyplot as plt
 ReLU = lambda x: np.maximum(0, x)
 
 
-def _fcann2_score(X, W1, b1, W2, b2):
-    s1 = np.dot(X, W1.T) + b1  # N x H
-    h1 = ReLU(s1)
+def fcann2_forward(X, W1, b1, W2, b2):
+    h1 = ReLU(np.dot(X, W1.T) + b1)  # N x H
     s2 = np.dot(h1, W2.T) + b2  # N x C
 
-    exp_s = np.exp(s2)  # N x C
-    exp_s_sum = np.sum(exp_s, axis=1, keepdims=True)  # todo check what does
+    exp_s2 = np.exp(s2)  # N x C
+    exp_s2_sum = np.sum(exp_s2, axis=1, keepdims=True)
 
-    prob = exp_s / exp_s_sum  # N x C
+    prob = exp_s2 / (1 + exp_s2_sum)  # N x C
 
     return h1, prob
 
@@ -30,11 +29,13 @@ def fcann2_train(X, Y_, param_niter=1e5, param_delta=0.05, param_lambda=1e-3, pa
     b2 = np.zeros((1, C))  # 1 x C
 
     for iter_n in range(int(param_niter)):
-        h1, prob = _fcann2_score(X, W1, b1, W2, b2)
+        h1, prob = fcann2_forward(X, W1, b1, W2, b2)
 
-        log_prob = -np.log(prob[range(N), Y_])  # todo check
+        log_prob = -np.log(prob[range(N), Y_])
 
-        log_loss = np.sum(log_prob) / N + param_lambda * (np.sum(np.square(W1)) + np.sum(np.square(W2)))
+        regularization = param_lambda * (np.sum(np.square(W1)) + np.sum(np.square(W2)))
+
+        log_loss = np.sum(log_prob) / N + regularization
 
         if iter_n % 500 == 0:
             print(f"Iter {iter_n}, loss {log_loss}.")
@@ -60,30 +61,23 @@ def fcann2_train(X, Y_, param_niter=1e5, param_delta=0.05, param_lambda=1e-3, pa
     return W1, b1, W2, b2
 
 
-def fcann2_classify(W1, b1, W2, b2):
-    return lambda X: _fcann2_score(X, W1, b1, W2, b2)[1]
-
+classify = lambda x: fcann2_forward(x, W1, b1, W2, b2)[1]
 
 if __name__ == '__main__':
     np.random.seed(100)
 
-    # get data
+    # Generate data
     X, Y_ = data.sample_gmm_2d(6, 2, 10)
 
+    # Train model
     W1, b1, W2, b2 = fcann2_train(X, Y_)
 
-    classify = fcann2_classify(W1, b1, W2, b2)
+    # Get predictions
+    y_predicted = np.argmax(classify(X), axis=1)
 
-    probs = classify(X)
-
-    # get the class predictions
-    Y = np.argmax(probs, axis=1)
-
-    # graph the decision surface
+    # Graph
     rect = (np.min(X, axis=0), np.max(X, axis=0))
     data.graph_surface(lambda x: classify(x)[:, 0], rect, offset=0.45)
-
-    # graph the data points
-    data.graph_data(X, Y_, Y, special=[])
+    data.graph_data(X, Y_, y_predicted, special=[])
 
     plt.show()

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 
 class KSVMWrap:
-    '''
+    """
     Metode:
       __init__(self, X, Y_, param_svm_c=1, param_svm_gamma='auto'):
         Konstruira omotač i uči RBF SVM klasifikator
@@ -23,7 +23,7 @@ class KSVMWrap:
 
       support
         Indeksi podataka koji su odabrani za potporne vektore
-    '''
+    """
 
     def __init__(self, X, Y_, param_svm_c=1, param_svm_gamma='auto'):
         self.svc = SVC(C=param_svm_c, gamma=param_svm_gamma)
@@ -46,16 +46,16 @@ if __name__ == '__main__':
 
     svm = KSVMWrap(X, Y_)
 
-    pred = svm.predict(X)
+    y_predicted = svm.predict(X)
 
-    acc, precission_recall, conf_matrix = data.eval_perf_multi(pred, Y_)
-    print(f'accuracy:{acc}\nprecission and recall per class:{precission_recall}\nconfusion matrix:{conf_matrix}')
+    acc, recall, precission = data.eval_perf_binary(y_predicted, Y_)
+    print(f'accuracy:{acc}\nrecall :{recall}\nprecission:{precission}')
 
     # iscrtaj rezultate, decizijsku plohu
     rect = (np.min(X, axis=0), np.max(X, axis=0))
     data.graph_surface(lambda x: svm.predict(x), rect, offset=0)
 
     # graph the data points
-    data.graph_data(X, Y_, pred, special=[svm.support()])
+    data.graph_data(X, Y_, y_predicted, special=[svm.support()])
 
     plt.show()

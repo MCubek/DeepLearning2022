@@ -17,8 +17,11 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 input_size = 784  # 28x28
 num_classes = 10
 batch_size = 100
-learning_rate = 0.001
+num_epoch = 20
+learning_rate = 0.01
 regularization = 0.001
+configurations = [[input_size, num_classes], [input_size, 100, num_classes], [input_size, 100, 100, num_classes],
+                  [input_size, 100, 100, 100, num_classes]]
 
 
 def load_mnist_data():
@@ -56,6 +59,7 @@ class MyDataLoader:
             self.shuffle()
         return iter(zip(self.x_array, self.y_array))
 
+
 class NeuralNet(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(NeuralNet, self).__init__()
@@ -72,7 +76,7 @@ class NeuralNet(nn.Module):
         return out
 
 
-def train(model, X, Y, batch_size, param_niter, param_delta, param_lambda):
+def train(model, data_loader, param_niter, param_delta, param_lambda):
     """Arguments:
        - X: model inputs [NxD], type: torch.Tensor
        - Yoh_: ground truth [NxC], type: torch.Tensor
@@ -82,23 +86,16 @@ def train(model, X, Y, batch_size, param_niter, param_delta, param_lambda):
 
     # inicijalizacija optimizatora
 
-    #model = NeuralNet(input_size, 500, num_classes).to(device)
+    # model = NeuralNet(input_size, 500, num_classes).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=param_delta)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=1 - param_delta)
     criterion = nn.CrossEntropyLoss(label_smoothing=param_lambda)
-    my_data_loader = MyDataLoader(X, Y, batch_size, shuffle=True)
-
-    examples = iter(my_data_loader)
-    example_data, example_targets = examples.__next__()
-    for i in range(6):
-        plt.subplot(2, 3, i + 1)
-        plt.imshow(example_data[i], cmap='gray')
-    plt.show()
 
     # petlja učenja
-    n_total_steps = len(my_data_loader)
+    n_total_steps = len(data_loader)
     for epoch in range(int(param_niter)):
-        for i, (images, labels) in enumerate(my_data_loader):
+        for i, (images, labels) in enumerate(data_loader):
 
             images = images.reshape(-1, 28 * 28).to(device)
             labels = labels.to(device)
@@ -115,13 +112,14 @@ def train(model, X, Y, batch_size, param_niter, param_delta, param_lambda):
             optimizer.step()
             optimizer.zero_grad()
 
+        scheduler.step()
 
-def eval(model, X, Y):
+
+def eval(model, data_loader):
     with torch.no_grad():
         n_correct = 0
         n_samples = 0
-        my_data_loader = MyDataLoader(X, Y, batch_size)
-        for images, labels in my_data_loader:
+        for images, labels in data_loader:
             images = images.reshape(-1, 28 * 28).to(device)
             labels = labels.to(device)
             outputs = model(images)
@@ -134,21 +132,16 @@ def eval(model, X, Y):
         print(f'Accuracy of the network on the 10000 test images: {acc} %')
 
 
-if __name__ == '__main__':
-    mnist_train, mnist_test = load_mnist_data()
+def plot_sample(data_loader):
+    examples = iter(data_loader)
+    example_data, example_targets = examples.__next__()
+    for i in range(6):
+        plt.subplot(2, 3, i + 1)
+        plt.imshow(example_data[i], cmap='gray')
+    plt.show()
 
-    model = pt_deep.PTDeep([input_size, 500, num_classes], torch.relu).to(device)
 
-    x_train, y_train = mnist_train.data, mnist_train.targets
-    x_test, y_test = mnist_test.data, mnist_test.targets
-
-    x_train, x_test = x_train.float().div_(255.0), x_test.float().div_(255.0)
-
-    train(model, x_train, y_train, batch_size=batch_size,
-          param_niter=200, param_delta=0.01, param_lambda=1e-4)
-
-    eval(model, x_test, y_test)
-
+def plot_weights(model):
     weights = model.weights[0].detach().numpy().reshape(-1, 28, 28)
 
     fig, ax = plt.subplots(2, 5)
@@ -157,3 +150,27 @@ if __name__ == '__main__':
         ax[i // 5 - 1, i % 5].imshow(digit_weight, cmap=plt.get_cmap('gray'))
 
     plt.show()
+
+
+if __name__ == '__main__':
+    mnist_train, mnist_test = load_mnist_data()
+
+    x_train, y_train = mnist_train.data, mnist_train.targets
+    x_test, y_test = mnist_test.data, mnist_test.targets
+    x_train, x_test = x_train.float().div_(255.0), x_test.float().div_(255.0)
+
+    my_data_loader = MyDataLoader(x_train, y_train, batch_size, shuffle=True)
+
+    plot_sample(my_data_loader)
+
+    for i, config in enumerate(configurations):
+        print(f'\nConfiguration = {config}')
+        model = pt_deep.PTDeep(config, torch.relu).to(device)
+
+        train(model, my_data_loader,
+              param_niter=num_epoch, param_delta=learning_rate, param_lambda=regularization)
+
+        eval(model, my_data_loader)
+
+        if i == 0:
+            plot_weights(model)

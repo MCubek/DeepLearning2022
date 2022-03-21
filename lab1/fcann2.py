@@ -4,15 +4,20 @@ import matplotlib.pyplot as plt
 
 ReLU = lambda x: np.maximum(0, x)
 
+softmax = lambda x: np.exp(x) / np.sum(np.exp(x), axis=1, keepdims=True)
+
+
+def loss(prob, N, y, W1, W2, param_lambda):
+    log_loss = - np.sum(np.log(prob[range(N), y])) / N
+    regularization = param_lambda * (np.sum(np.square(W1)) + np.sum(np.square(W2)))
+    return log_loss + regularization
+
 
 def fcann2_forward(X, W1, b1, W2, b2):
-    h1 = ReLU(np.dot(X, W1.T) + b1)  # N x H
-    s2 = np.dot(h1, W2.T) + b2  # N x C
+    h1 = ReLU(np.dot(X, W1) + b1)  # N x H
+    s2 = np.dot(h1, W2) + b2  # N x C
 
-    exp_s2 = np.exp(s2)  # N x C
-    exp_s2_sum = np.sum(exp_s2, axis=1, keepdims=True)
-
-    prob = exp_s2 / (1 + exp_s2_sum)  # N x C
+    prob = softmax(s2)  # N x C
 
     return h1, prob
 
@@ -22,20 +27,15 @@ def fcann2_train(X, Y_, param_niter=1e5, param_delta=0.05, param_lambda=1e-3, pa
     C = np.unique(Y_).size
 
     # X -> N X D
-
-    W1 = np.random.randn(param_nhidden, D)  # H x D
+    W1 = np.random.randn(D, param_nhidden)  # D x H
     b1 = np.zeros((1, param_nhidden))  # 1 x H
-    W2 = np.random.randn(C, param_nhidden)  # C x H
+    W2 = np.random.randn(param_nhidden, C)  # H x C
     b2 = np.zeros((1, C))  # 1 x C
 
     for iter_n in range(int(param_niter)):
         h1, prob = fcann2_forward(X, W1, b1, W2, b2)
 
-        log_prob = -np.log(prob[range(N), Y_])
-
-        regularization = param_lambda * (np.sum(np.square(W1)) + np.sum(np.square(W2)))
-
-        log_loss = np.sum(log_prob) / N + regularization
+        log_loss = loss(prob, N, Y_, W1, W2, param_lambda)
 
         if iter_n % 500 == 0:
             print(f"Iter {iter_n}, loss {log_loss}.")
@@ -44,14 +44,17 @@ def fcann2_train(X, Y_, param_niter=1e5, param_delta=0.05, param_lambda=1e-3, pa
         Gs2[range(N), Y_] -= 1
         Gs2 /= N
 
-        grad_W2 = np.dot(Gs2.T, h1)
-        grad_b2 = np.sum(Gs2, axis=0, keepdims=True)  # C x 1
-
-        Gs1 = np.dot(Gs2, W2)  # N x H
+        Gs1 = np.dot(Gs2, W2.T)  # N x H
         Gs1[h1 <= 0] = 0
 
-        grad_W1 = np.dot(Gs1.T, X)  # H x D
+        grad_W2 = np.dot(h1.T, Gs2)
+        grad_b2 = np.sum(Gs2, axis=0, keepdims=True)  # C x 1
+
+        grad_W1 = np.dot(X.T, Gs1)  # H x D
         grad_b1 = np.sum(Gs1, axis=0, keepdims=True)  # H x 1
+
+        grad_W2 += param_lambda * W2
+        grad_W1 += param_lambda * W1
 
         W2 += - param_delta * grad_W2
         b2 += - param_delta * grad_b2

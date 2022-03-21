@@ -1,14 +1,14 @@
-import random
-
+import matplotlib.pyplot as plt
+import numpy as np
 import sklearn
 import torch
 import torchvision
 import torchvision.transforms as transforms
-import matplotlib.pyplot as plt
-from torch import optim, nn
+from torch import nn
 
-import pt_deep
 import data
+import ksvm_wrap
+import pt_deep
 
 # Device configuration
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -19,7 +19,7 @@ num_classes = 10
 batch_size = 100
 num_epoch = 20
 learning_rate = 0.01
-regularization = 0.001
+regularization_factor = 0.005
 configurations = [[input_size, num_classes], [input_size, 100, num_classes], [input_size, 100, 100, num_classes],
                   [input_size, 100, 100, 100, num_classes]]
 
@@ -76,7 +76,7 @@ class NeuralNet(nn.Module):
         return out
 
 
-def train(model, data_loader, param_niter, param_delta, param_lambda):
+def train(model, data_loader, param_niter, param_delta, param_lambda, log=True):
     """Arguments:
        - X: model inputs [NxD], type: torch.Tensor
        - Yoh_: ground truth [NxC], type: torch.Tensor
@@ -93,10 +93,9 @@ def train(model, data_loader, param_niter, param_delta, param_lambda):
     criterion = nn.CrossEntropyLoss(label_smoothing=param_lambda)
 
     # petlja učenja
-    n_total_steps = len(data_loader)
+    loss = None
     for epoch in range(int(param_niter)):
-        for i, (images, labels) in enumerate(data_loader):
-
+        for images, labels in data_loader:
             images = images.reshape(-1, 28 * 28).to(device)
             labels = labels.to(device)
 
@@ -105,31 +104,21 @@ def train(model, data_loader, param_niter, param_delta, param_lambda):
 
             loss.backward()
 
-            if (i + 1) % 100 == 0:
-                print(
-                    f'Epoch [{epoch + 1}/{int(param_niter)}], Step [{i + 1}/{n_total_steps}], Loss: {loss.item():.4f}')
-
             optimizer.step()
             optimizer.zero_grad()
 
+        if log:
+            print(f'Epoch [{epoch + 1}/{int(param_niter)}], Loss: {loss.item():.4f}')
         scheduler.step()
 
 
-def eval(model, data_loader):
+def eval(model, X, y_true):
     with torch.no_grad():
-        n_correct = 0
-        n_samples = 0
-        for images, labels in data_loader:
-            images = images.reshape(-1, 28 * 28).to(device)
-            labels = labels.to(device)
-            outputs = model(images)
-            # max returns (value ,index)
-            _, predicted = torch.max(outputs.data, 1)
-            n_samples += labels.size(0)
-            n_correct += (predicted == labels).sum().item()
+        y_predicted = model(X.reshape(-1, 28 * 28)).detach().numpy()
+        y_predicted = np.argmax(y_predicted, axis=1)
+        acc, precission_recall, conf_matrix = data.eval_perf_multi(y_predicted, y_true)
 
-        acc = 100.0 * n_correct / n_samples
-        print(f'Accuracy of the network on the 10000 test images: {acc} %')
+        print(f'accuracy:{acc}\nprecission and recall per class:{precission_recall}\nconfusion matrix:\n{conf_matrix}')
 
 
 def plot_sample(data_loader):
@@ -141,13 +130,24 @@ def plot_sample(data_loader):
     plt.show()
 
 
+def get_one_loss(model, data_loader):
+    with torch.no_grad():
+        images, labels = iter(data_loader).__next__()
+        images = images.reshape(-1, 28 * 28).to(device)
+        labels = labels.to(device)
+
+        outputs = model(images)
+        criterion = nn.CrossEntropyLoss(label_smoothing=regularization_factor)
+        return criterion(outputs, labels)
+
+
 def plot_weights(model):
     weights = model.weights[0].detach().numpy().reshape(-1, 28, 28)
 
     fig, ax = plt.subplots(2, 5)
 
     for i, digit_weight in enumerate(weights):
-        ax[i // 5 - 1, i % 5].imshow(digit_weight, cmap=plt.get_cmap('gray'))
+        ax[i // 5 - 1, i % 5].imshow(digit_weight.T, cmap=plt.get_cmap('gray'))
 
     plt.show()
 
@@ -159,18 +159,45 @@ if __name__ == '__main__':
     x_test, y_test = mnist_test.data, mnist_test.targets
     x_train, x_test = x_train.float().div_(255.0), x_test.float().div_(255.0)
 
-    my_data_loader = MyDataLoader(x_train, y_train, batch_size, shuffle=True)
+    my_data_loader_train = MyDataLoader(x_train, y_train, batch_size, shuffle=True)
+    my_data_loader_test = MyDataLoader(x_train, y_train, batch_size, shuffle=True)
 
-    plot_sample(my_data_loader)
+    # Plot digit sample
+    plot_sample(my_data_loader_train)
 
+    # 8)
+    model = pt_deep.PTDeep([input_size, 100, num_classes], torch.relu).to(device)
+    loss = get_one_loss(model, my_data_loader_train)
+    print(f"Loss before training = {loss}")
+
+    # 1)
+    print(f'Regularization parameters:')
+    regularization_params = [0.001, 0.005, 0.01]
+    for lambda_param in regularization_params:
+        print(f'param={lambda_param}')
+
+        model = pt_deep.PTDeep([input_size, num_classes], torch.relu).to(device)
+        train(model, my_data_loader_train,
+              param_niter=num_epoch, param_delta=learning_rate, param_lambda=lambda_param, log=True)
+        eval(model, x_test, y_test)
+        plot_weights(model)
+
+    # 2)
     for i, config in enumerate(configurations):
         print(f'\nConfiguration = {config}')
         model = pt_deep.PTDeep(config, torch.relu).to(device)
 
-        train(model, my_data_loader,
-              param_niter=num_epoch, param_delta=learning_rate, param_lambda=regularization)
+        train(model, my_data_loader_train,
+              param_niter=num_epoch, param_delta=learning_rate, param_lambda=regularization_factor)
 
-        eval(model, my_data_loader)
+        eval(model, x_test, y_test)
 
-        if i == 0:
-            plot_weights(model)
+    # 9)
+    svm_kernels = ['linear', 'rbf']
+    for kernel in svm_kernels:
+        print(f'SVM Kernel = {kernel}.')
+        model = ksvm_wrap.KSVMWrap(x_train.reshape(-1, 28 * 28), y_train, param_kernel=kernel)
+        y_predicted = model.predict(x_test.reshape(-1, 28 * 28))
+        acc, precission_recall, conf_matrix = data.eval_perf_multi(y_predicted, y_test)
+
+        print(f'accuracy:{acc}\nprecission and recall per class:{precission_recall}\nconfusion matrix:\n{conf_matrix}')

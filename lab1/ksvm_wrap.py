@@ -25,8 +25,8 @@ class KSVMWrap:
         Indeksi podataka koji su odabrani za potporne vektore
     """
 
-    def __init__(self, X, Y_, param_svm_c=1, param_svm_gamma='auto'):
-        self.svc = SVC(C=param_svm_c, gamma=param_svm_gamma)
+    def __init__(self, X, Y_, param_svm_c=1, param_svm_gamma='auto', param_kernel='rbf'):
+        self.svc = SVC(C=param_svm_c, gamma=param_svm_gamma, kernel=param_kernel)
         self.svc.fit(X, Y_)
 
     def predict(self, X):

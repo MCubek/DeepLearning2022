@@ -83,31 +83,36 @@ if __name__ == "__main__":
     torch.manual_seed(100)
     np.random.seed(100)
 
-    X, Y_ = data.sample_gmm_2d(4, 2, 40)
+    samples = [(4, 2, 40), (6, 2, 10)]
 
-    X_tensor = torch.from_numpy(X.astype(np.float32))
-    Y_tensor = torch.from_numpy(Y_.astype(np.int64))
+    for a, b, c in samples:
+        X, Y_ = data.sample_gmm_2d(a, b, c)
 
-    configs = [[2, 2], [2, 10, 2], [2, 10, 10, 2]]
+        X_tensor = torch.from_numpy(X.astype(np.float32))
+        Y_tensor = torch.from_numpy(Y_.astype(np.int64))
 
-    for config in configs:
-        print(f'Config: {config}\n')
+        configs = [[2, 2], [2, 10, 2], [2, 10, 10, 2]]
 
-        ptdeep = PTDeep(config, torch.relu)
-        ptdeep.count_params()
+        for config in configs:
+            print(f'Sample: {a, b, c}')
+            print(f'Config: {config}\n')
 
-        train(ptdeep, X_tensor, Y_tensor, param_niter=1e4, param_delta=0.1, param_lambda=1e-4)
+            ptdeep = PTDeep(config, torch.relu)
+            ptdeep.count_params()
 
-        y_predicted = eval(ptdeep, X_tensor)
+            train(ptdeep, X_tensor, Y_tensor, param_niter=1e4, param_delta=0.1, param_lambda=1e-4)
 
-        # ispiši performansu (preciznost i odziv po razredima)
-        acc, precission_recall, conf_matrix = data.eval_perf_multi(y_predicted, Y_)
+            y_predicted = eval(ptdeep, X_tensor)
 
-        print(f'accuracy:{acc}\nprecission and recall per class:{precission_recall}\nconfusion matrix:\n{conf_matrix}')
+            # ispiši performansu (preciznost i odziv po razredima)
+            acc, precission_recall, conf_matrix = data.eval_perf_multi(y_predicted, Y_)
 
-        # iscrtaj rezultate, decizijsku plohu
-        rect = (np.min(X, axis=0), np.max(X, axis=0))
-        data.graph_surface(lambda x: eval(ptdeep, torch.from_numpy(x.astype(np.float32))), rect, offset=0)
-        data.graph_data(X, Y_, y_predicted, special=[])
+            print(
+                f'accuracy:{acc}\nprecission and recall per class:{precission_recall}\nconfusion matrix:\n{conf_matrix}')
 
-        plt.show()
+            # iscrtaj rezultate, decizijsku plohu
+            rect = (np.min(X, axis=0), np.max(X, axis=0))
+            data.graph_surface(lambda x: eval(ptdeep, torch.from_numpy(x.astype(np.float32))), rect, offset=0)
+            data.graph_data(X, Y_, y_predicted, special=[])
+
+            plt.show()

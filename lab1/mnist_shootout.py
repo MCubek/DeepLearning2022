@@ -60,6 +60,20 @@ class MyDataLoader:
         return iter(zip(self.x_array, self.y_array))
 
 
+def generate_validation_train_split(X, y, split=0.25):
+    size = X.shape[0]
+    limit = int(size * 0.25)
+
+    x_array, y_array = sklearn.utils.shuffle(X, y)
+
+    x_array_train = x_array[limit:]
+    y_array_train = y_array[limit:]
+    x_array_validation = x_array[:limit]
+    y_array_validation = y_array[:limit]
+
+    return x_array_train, y_array_train, x_array_validation, y_array_validation
+
+
 class NeuralNet(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(NeuralNet, self).__init__()
@@ -76,7 +90,7 @@ class NeuralNet(nn.Module):
         return out
 
 
-def train(model, data_loader, param_niter, param_delta, param_lambda, log=True):
+def train(model, data_loader, param_niter, param_delta, param_lambda, log=True, X_validate=None, y_validate=None):
     """Arguments:
        - X: model inputs [NxD], type: torch.Tensor
        - Yoh_: ground truth [NxC], type: torch.Tensor
@@ -94,6 +108,7 @@ def train(model, data_loader, param_niter, param_delta, param_lambda, log=True):
 
     # petlja učenja
     loss = None
+    acc = 0
     for epoch in range(int(param_niter)):
         for images, labels in data_loader:
             images = images.reshape(-1, 28 * 28).to(device)
@@ -111,14 +126,29 @@ def train(model, data_loader, param_niter, param_delta, param_lambda, log=True):
             print(f'Epoch [{epoch + 1}/{int(param_niter)}], Loss: {loss.item():.4f}')
         scheduler.step()
 
+        if X_validate is not None:
+            acc_epoch = eval(model, X_validate, y_validate, print_result=False)
+            if acc_epoch > acc:
+                torch.save(model, 'model.pth')
+                model.to(device)
 
-def eval(model, X, y_true):
+    if X_validate is not None:
+        model = torch.load('model.pth')
+
+    return model
+
+
+def eval(model, X, y_true, print_result=True):
     with torch.no_grad():
         y_predicted = model(X.reshape(-1, 28 * 28)).detach().numpy()
         y_predicted = np.argmax(y_predicted, axis=1)
         acc, precission_recall, conf_matrix = data.eval_perf_multi(y_predicted, y_true)
 
-        print(f'accuracy:{acc}\nprecission and recall per class:{precission_recall}\nconfusion matrix:\n{conf_matrix}')
+        if print_result:
+            print(
+                f'accuracy:{acc}\nprecission and recall per class:{precission_recall}\nconfusion matrix:\n{conf_matrix}')
+
+        return acc
 
 
 def plot_sample(data_loader):
@@ -191,6 +221,17 @@ if __name__ == '__main__':
               param_niter=num_epoch, param_delta=learning_rate, param_lambda=regularization_factor)
 
         eval(model, x_test, y_test)
+
+    # 4)
+    x_train_v, y_train_v, x_validate, y_validate = generate_validation_train_split(x_train, y_train)
+
+    train_v_data_loader = MyDataLoader(x_train_v, y_train_v, batch_size)
+
+    model = pt_deep.PTDeep([input_size, 100, 100, num_classes], torch.relu).to(device)
+    train(model, train_v_data_loader,
+          param_niter=num_epoch, param_delta=learning_rate, param_lambda=regularization_factor,
+          log=True, X_validate=x_validate, y_validate=y_validate)
+    eval(model, x_test, y_test)
 
     # 9)
     svm_kernels = ['linear', 'rbf']

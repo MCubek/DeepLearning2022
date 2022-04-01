@@ -1,3 +1,6 @@
 /.idea/
 /lab1/model.pth
 /lab2/build/
+/lab2/datasets/
+/lab2/out/
+/lab2/runs/

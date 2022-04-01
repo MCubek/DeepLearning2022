@@ -181,6 +181,8 @@ class FC(Layer):
       bias_initializer_fn: initializer function for biases
     """
 
+        self.inputs = input_layer
+
         self.input_shape = input_layer.shape
         self.N = self.input_shape[0]
         self.shape = (self.N, num_outputs)
@@ -202,8 +204,9 @@ class FC(Layer):
     Returns:
       An ndarray of shape (N, num_outputs)
     """
-        # TODO
-        pass
+        self.inputs = inputs
+        self.input_shape = inputs.shape
+        return inputs.dot(self.weights.T) + self.bias
 
     def backward_inputs(self, grads):
         """
@@ -212,8 +215,7 @@ class FC(Layer):
     Returns:
       An ndarray of shape (N, num_inputs)
     """
-        # TODO
-        pass
+        return grads.dot(self.weights)
 
     def backward_params(self, grads):
         """
@@ -222,9 +224,8 @@ class FC(Layer):
     Returns:
       List of params and gradient pairs.
     """
-        # TODO
-        grad_weights = ...
-        grad_bias = ...
+        grad_weights = grads.T.dot(self.inputs)
+        grad_bias = np.sum(grads.T, axis=1)
         return [[self.weights, grad_weights], [self.bias, grad_bias], self.name]
 
 
@@ -234,6 +235,8 @@ class ReLU(Layer):
         self.name = name
         self.has_params = False
 
+        self.inputs = input_layer
+
     def forward(self, inputs):
         """
     Args:
@@ -241,8 +244,8 @@ class ReLU(Layer):
     Returns:
       ndarray of shape (N, C, H, W).
     """
-        # TODO
-        pass
+        self.inputs = inputs
+        return np.maximum(0, inputs)
 
     def backward_inputs(self, grads):
         """
@@ -251,8 +254,12 @@ class ReLU(Layer):
     Returns:
       ndarray of shape (N, C, H, W).
     """
-        # TODO
-        pass
+        relu_d = np.maximum(0, self.inputs)
+        relu_d[relu_d != 0] = 1
+        return grads * relu_d
+
+
+softmax = lambda x: np.exp(x) / np.sum(np.exp(x), axis=1, keepdims=True)
 
 
 class SoftmaxCrossEntropyWithLogits():
@@ -270,8 +277,7 @@ class SoftmaxCrossEntropyWithLogits():
       because then learning rate and weight decay won't depend on batch size.
 
     """
-        # TODO
-        pass
+        return np.mean(np.log(np.sum(np.exp(x), axis=1)) - np.sum(x * y, axis=1))
 
     def backward_inputs(self, x, y):
         """
@@ -282,8 +288,7 @@ class SoftmaxCrossEntropyWithLogits():
       Gradient with respect to the x, ndarray of shape (N, num_classes).
     """
         # Hint: don't forget that we took the average in the forward pass
-        # TODO
-        pass
+        return 1 / len(x) * (softmax(x) - y)
 
 
 class L2Regularizer():
@@ -304,16 +309,14 @@ class L2Regularizer():
      Returns:
       Scalar, loss due to the L2 regularization.
     """
-        # TODO
-        pass
+        return np.linalg.norm(self.weights) * self.weight_decay
 
     def backward_params(self):
         """
     Returns:
       Gradient of the L2 loss with respect to the regularized weights.
     """
-        # TODO
-        grad_weights = ...
+        grad_weights = self.weight_decay * self.weights / np.linalg.norm(self.weights)
         return [[self.weights, grad_weights], self.name]
 
 

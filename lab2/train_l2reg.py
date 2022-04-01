@@ -8,7 +8,7 @@ import nn
 import layers
 
 DATA_DIR = Path(__file__).parent / 'datasets' / 'MNIST'
-SAVE_DIR = Path(__file__).parent / 'out'
+SAVE_DIR = Path(__file__).parent / 'out' / 'l2reg'
 
 config = {'max_epochs': 8, 'batch_size': 50, 'save_dir': SAVE_DIR, 'weight_decay': 1e-3,
           'lr_policy': {1: {'lr': 1e-1}, 3: {'lr': 1e-2}, 5: {'lr': 1e-3}, 7: {'lr': 1e-4}}}

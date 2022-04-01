@@ -70,10 +70,9 @@ class CovolutionalModel(nn.Module):
 
 # noinspection DuplicatedCode
 def draw_conv_filters(epoch, step, layer, save_dir):
-    C = layer.C
-    w = layer.weights.copy()
-    num_filters = w.shape[0]
-    k = int(np.sqrt(w.shape[1] / C))
+    w = layer.weight.data.detach().numpy().astype(np.uint8)
+    num_filters, C, k = w.shape[:3]
+
     w = w.reshape(num_filters, C, k, k)
     w -= w.min()
     w /= w.max()
@@ -89,12 +88,62 @@ def draw_conv_filters(epoch, step, layer, save_dir):
             r = int(j / cols) * (k + border)
             c = int(j % cols) * (k + border)
             img[r:r + k, c:c + k] = w[j, i]
-        filename = '%s_epoch_%02d_step_%06d_input_%03d.png' % (layer.name, epoch, step, i)
+        filename = '%s_epoch_%02d_step_%06d_input_%03d.png' % ('torch_conv1', epoch, step, i)
         ski.io.imsave(os.path.join(save_dir, filename), img)
 
 
 def train(model, train_loader, val_loader):
-    pass
+    criterion = nn.CrossEntropyLoss()
+    optimizer = None
+
+    running_loss = 0.0
+    running_correct = 0
+    n_total_steps = len(train_loader)
+    n_dataset_size = len(train_loader.dataset)
+
+    for epoch in range(num_epochs):
+        running_correct_epoch = 0
+
+        if (epoch + 1) in learning_rate_policy:
+            optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate_policy[epoch + 1],
+                                        weight_decay=weight_decay)
+        assert optimizer is not None
+
+        for i, (images, labels) in enumerate(train_loader):
+            images = images.to(device)
+            labels = labels.to(device)
+
+            outputs = model.forward(images)
+            loss = criterion(outputs, labels)
+
+            loss.backward()
+
+            optimizer.step()
+            optimizer.zero_grad()
+
+            running_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            running_correct += (predicted == labels).sum().item()
+            running_correct_epoch += (predicted == labels).sum().item()
+
+            if i % 10 == 0:
+                print(
+                    f'Epoch [{epoch + 1}/{num_epochs}], Step [{i * batch_size}/{n_dataset_size}], Loss: {loss.item():.4f}')
+
+            if i % 100 == 0:
+                writer.add_scalar('training loss', running_loss / 100, epoch * n_total_steps + i)
+                running_accuracy = running_correct / 100 / predicted.size(0)
+                print("Train accuracy on batch = %.2f" % running_accuracy)
+                writer.add_scalar('accuracy', running_accuracy, epoch * n_total_steps + i)
+                running_loss = 0.0
+                running_correct = 0
+
+                draw_conv_filters(epoch + 1, i * batch_size, model.conv1, SAVE_DIR)
+
+        print("Train accuracy after epoch = %.2f" % (running_correct_epoch / n_dataset_size * 100))
+        evaluate("Validation", val_loader, model, criterion)
+
+    return model
 
 
 # noinspection DuplicatedCode
@@ -102,19 +151,40 @@ def evaluate(name, data_loader, model, loss_function):
     print("\nRunning evaluation: ", name)
     num_examples = len(data_loader.dataset)
     assert num_examples % batch_size == 0
+
     num_batches = num_examples // batch_size
     cnt_correct = 0
     loss_avg = 0
+
+    class_preds = []
+    class_labels = []
+
     with torch.no_grad():
         for i, (images, labels) in enumerate(data_loader):
-            logits = model.forward(images)
-            loss_val = loss_function(logits, labels)
+            images = images.to(device)
+            labels = labels.to(device)
+
+            outputs = model.forward(images)
+            loss_val = loss_function(outputs, labels)
             loss_avg += loss_val
+            _, predicted = torch.max(outputs.data, 1)
+            cnt_correct += (predicted == labels).sum().item()
+
+            class_probs_batch = [F.softmax(output, dim=0) for output in outputs]
+
+            class_preds.append(class_probs_batch)
+            class_labels.append(predicted)
 
     valid_acc = cnt_correct / num_examples * 100
     loss_avg /= num_batches
+
     print(name + " accuracy = %.2f" % valid_acc)
     print(name + " avg loss = %.2f\n" % loss_avg)
+
+    class_preds = torch.cat([torch.stack(batch) for batch in class_preds])
+    class_labels = torch.cat(class_labels)
+
+    return class_preds, class_labels
 
 
 if __name__ == '__main__':
@@ -151,4 +221,11 @@ if __name__ == '__main__':
     writer.add_graph(model, example_data)
 
     train(model, train_loader, val_loader)
-    evaluate('Test', test_loader, model, nn.CrossEntropyLoss())
+
+    class_preds, class_labels = evaluate('Test', test_loader, model, nn.CrossEntropyLoss())
+
+    for i in range(10):
+        labels_i = class_labels == i
+        preds_i = class_preds[:, i]
+        writer.add_pr_curve(str(i), labels_i, preds_i, global_step=0)
+    writer.close()

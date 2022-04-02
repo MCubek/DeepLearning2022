@@ -81,9 +81,10 @@ def draw_conv_filters(epoch, step, layer):
             img[r:r + k, c:c + k] = w[j, i] * 255
         filename = '%s_epoch_%02d_step_%06d_input_%03d' % ('torch_conv1', epoch, step, i)
         grid = torchvision.utils.make_grid(torch.from_numpy(img))
-        writer.add_image(filename, grid)
+        writer.add_image(filename, grid, step)
 
 
+# noinspection DuplicatedCode
 def train(model, train_loader, val_loader):
     criterion = nn.CrossEntropyLoss()
     optimizer = None
@@ -124,11 +125,11 @@ def train(model, train_loader, val_loader):
                     f'Epoch [{epoch + 1}/{num_epochs}], Step [{i * batch_size}/{n_dataset_size}], Loss: {loss.item():.4f}')
 
             if i % 100 == 0:
-                writer.add_scalar('batch training loss', running_loss / 100, epoch * n_total_steps + i)
+                writer.add_scalar('loss/train batch', running_loss / 100, epoch * n_total_steps + i)
 
                 running_accuracy = running_correct / 100 / predicted.size(0)
                 print("Train accuracy on batch = %.4f" % running_accuracy)
-                writer.add_scalar('batch train accuracy', running_accuracy, epoch * n_total_steps + i)
+                writer.add_scalar('accuracy/train batch', running_accuracy, epoch * n_total_steps + i)
 
                 running_loss = 0.0
                 running_correct = 0
@@ -137,11 +138,11 @@ def train(model, train_loader, val_loader):
 
         epoch_accuracy = running_correct_epoch / n_dataset_size * 100
         print("Train accuracy after epoch = %.4f" % epoch_accuracy)
-        writer.add_scalar('epoch train accuracy', epoch_accuracy, epoch)
+        writer.add_scalar('accuracy/train epoch', epoch_accuracy, epoch)
 
         valid_acc, valid_loss_avg = evaluate("Validation", val_loader, model, criterion)
-        writer.add_scalar('epoch validation accuracy', valid_acc, epoch)
-        writer.add_scalar('epoch validation avg loss', valid_loss_avg, epoch)
+        writer.add_scalar('accuracy/validate', valid_acc, epoch)
+        writer.add_scalar('loss/validate', valid_loss_avg, epoch)
 
     return model
 

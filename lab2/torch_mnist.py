@@ -25,9 +25,9 @@ val_size = 5000
 class CovolutionalModel(nn.Module):
     def __init__(self, in_channels, conv1_width, conv2_width, fc1_width, class_count):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, conv1_width, kernel_size=5, stride=1, padding=2, bias=True)
+        self.conv1 = nn.Conv2d(in_channels, conv1_width, kernel_size=5, padding=2, bias=True)
         self.pool1 = nn.MaxPool2d(2)
-        self.conv2 = nn.Conv2d(conv1_width, conv2_width, kernel_size=5, stride=1, padding=2, bias=True)
+        self.conv2 = nn.Conv2d(conv1_width, conv2_width, kernel_size=5, padding=2, bias=True)
         self.pool2 = nn.MaxPool2d(2)
         self.fc1 = nn.Linear(conv2_width * 7 * 7, fc1_width, bias=True)
         self.fc_logits = nn.Linear(fc1_width, class_count, bias=True)
@@ -53,11 +53,11 @@ class CovolutionalModel(nn.Module):
         h = self.conv2(h)
         h = self.pool2(h)
         h = torch.relu(h)
-        h = h.view(h.shape[0], -1)
+        h = h.view((h.shape[0], -1))
         h = self.fc1(h)
         h = torch.relu(h)
-        logits = self.fc_logits(h)
-        return logits
+        h = self.fc_logits(h)
+        return h
 
 
 # noinspection DuplicatedCode
@@ -105,7 +105,7 @@ def train(model, train_loader, val_loader):
             images = images.to(device)
             labels = labels.to(device)
 
-            outputs = model.forward(images)
+            outputs = model(images)
             loss = criterion(outputs, labels)
 
             loss.backward()

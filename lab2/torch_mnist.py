@@ -1,16 +1,9 @@
-import sys
+import math
+from pathlib import Path
 
+import numpy as np
 import torch
 import torch.nn as nn
-from pathlib import Path
-import os
-import time
-import math
-import numpy as np
-import matplotlib.pyplot as plt
-import skimage as ski
-import skimage.io
-import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
@@ -18,12 +11,11 @@ from torch.utils.tensorboard import SummaryWriter
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 DATA_DIR = Path(__file__).parent / 'datasets' / 'MNIST'
-SAVE_DIR = Path(__file__).parent / 'out' / 'torch' / 'MNIST'
 RUNS_DIR = Path(__file__).parent / 'runs' / 'MNIST'
 
 writer = SummaryWriter(str(RUNS_DIR))
 
-num_epochs = 5
+num_epochs = 8
 batch_size = 50
 learning_rate_policy = {1: 1e-1, 3: 1e-2, 5: 1e-3, 7: 1e-4}
 weight_decay = 1e-3
@@ -42,7 +34,7 @@ class CovolutionalModel(nn.Module):
 
         # parametri su već inicijalizirani pozivima Conv2d i Linear
         # ali možemo ih drugačije inicijalizirati
-        self.reset_parameters()
+        # self.reset_parameters()
 
     def reset_parameters(self):
         for m in self.modules():
@@ -69,8 +61,8 @@ class CovolutionalModel(nn.Module):
 
 
 # noinspection DuplicatedCode
-def draw_conv_filters(epoch, step, layer, save_dir):
-    w = layer.weight.data.detach().numpy().astype(np.uint8)
+def draw_conv_filters(epoch, step, layer):
+    w = layer.weight.data.detach().numpy()
     num_filters, C, k = w.shape[:3]
 
     w = w.reshape(num_filters, C, k, k)
@@ -81,15 +73,15 @@ def draw_conv_filters(epoch, step, layer, save_dir):
     rows = math.ceil(num_filters / cols)
     width = cols * k + (cols - 1) * border
     height = rows * k + (rows - 1) * border
-    # for i in range(C):
-    for i in range(1):
-        img = np.zeros([height, width])
+    for i in range(C):
+        img = np.zeros([height, width]).astype(np.uint8)
         for j in range(num_filters):
             r = int(j / cols) * (k + border)
             c = int(j % cols) * (k + border)
-            img[r:r + k, c:c + k] = w[j, i]
-        filename = '%s_epoch_%02d_step_%06d_input_%03d.png' % ('torch_conv1', epoch, step, i)
-        ski.io.imsave(os.path.join(save_dir, filename), img)
+            img[r:r + k, c:c + k] = w[j, i] * 255
+        filename = '%s_epoch_%02d_step_%06d_input_%03d' % ('torch_conv1', epoch, step, i)
+        grid = torchvision.utils.make_grid(torch.from_numpy(img))
+        writer.add_image(filename, grid)
 
 
 def train(model, train_loader, val_loader):
@@ -123,25 +115,33 @@ def train(model, train_loader, val_loader):
 
             running_loss += loss.item()
             _, predicted = torch.max(outputs.data, 1)
-            running_correct += (predicted == labels).sum().item()
-            running_correct_epoch += (predicted == labels).sum().item()
+            predicted_correct = (predicted == labels).sum().item()
+            running_correct += predicted_correct
+            running_correct_epoch += predicted_correct
 
             if i % 10 == 0:
                 print(
                     f'Epoch [{epoch + 1}/{num_epochs}], Step [{i * batch_size}/{n_dataset_size}], Loss: {loss.item():.4f}')
 
             if i % 100 == 0:
-                writer.add_scalar('training loss', running_loss / 100, epoch * n_total_steps + i)
+                writer.add_scalar('batch training loss', running_loss / 100, epoch * n_total_steps + i)
+
                 running_accuracy = running_correct / 100 / predicted.size(0)
                 print("Train accuracy on batch = %.2f" % running_accuracy)
-                writer.add_scalar('accuracy', running_accuracy, epoch * n_total_steps + i)
+                writer.add_scalar('batch train accuracy', running_accuracy, epoch * n_total_steps + i)
+
                 running_loss = 0.0
                 running_correct = 0
 
-                draw_conv_filters(epoch + 1, i * batch_size, model.conv1, SAVE_DIR)
+                draw_conv_filters(epoch + 1, i * batch_size, model.conv1)
 
-        print("Train accuracy after epoch = %.2f" % (running_correct_epoch / n_dataset_size * 100))
-        evaluate("Validation", val_loader, model, criterion)
+        epoch_accuracy = running_correct_epoch / n_dataset_size * 100
+        print("Train accuracy after epoch = %.2f" % epoch_accuracy)
+        writer.add_scalar('epoch train accuracy', epoch_accuracy, epoch)
+
+        valid_acc, valid_loss_avg = evaluate("Validation", val_loader, model, criterion)
+        writer.add_scalar('epoch validation accuracy', valid_acc, epoch)
+        writer.add_scalar('epoch validation avg loss', valid_loss_avg, epoch)
 
     return model
 
@@ -156,9 +156,6 @@ def evaluate(name, data_loader, model, loss_function):
     cnt_correct = 0
     loss_avg = 0
 
-    class_preds = []
-    class_labels = []
-
     with torch.no_grad():
         for i, (images, labels) in enumerate(data_loader):
             images = images.to(device)
@@ -167,13 +164,9 @@ def evaluate(name, data_loader, model, loss_function):
             outputs = model.forward(images)
             loss_val = loss_function(outputs, labels)
             loss_avg += loss_val
+
             _, predicted = torch.max(outputs.data, 1)
             cnt_correct += (predicted == labels).sum().item()
-
-            class_probs_batch = [F.softmax(output, dim=0) for output in outputs]
-
-            class_preds.append(class_probs_batch)
-            class_labels.append(predicted)
 
     valid_acc = cnt_correct / num_examples * 100
     loss_avg /= num_batches
@@ -181,10 +174,7 @@ def evaluate(name, data_loader, model, loss_function):
     print(name + " accuracy = %.2f" % valid_acc)
     print(name + " avg loss = %.2f\n" % loss_avg)
 
-    class_preds = torch.cat([torch.stack(batch) for batch in class_preds])
-    class_labels = torch.cat(class_labels)
-
-    return class_preds, class_labels
+    return valid_acc, loss_avg
 
 
 if __name__ == '__main__':
@@ -224,8 +214,4 @@ if __name__ == '__main__':
 
     class_preds, class_labels = evaluate('Test', test_loader, model, nn.CrossEntropyLoss())
 
-    for i in range(10):
-        labels_i = class_labels == i
-        preds_i = class_preds[:, i]
-        writer.add_pr_curve(str(i), labels_i, preds_i, global_step=0)
     writer.close()

@@ -127,7 +127,7 @@ def train(model, train_loader, val_loader):
                 writer.add_scalar('batch training loss', running_loss / 100, epoch * n_total_steps + i)
 
                 running_accuracy = running_correct / 100 / predicted.size(0)
-                print("Train accuracy on batch = %.2f" % running_accuracy)
+                print("Train accuracy on batch = %.4f" % running_accuracy)
                 writer.add_scalar('batch train accuracy', running_accuracy, epoch * n_total_steps + i)
 
                 running_loss = 0.0
@@ -136,7 +136,7 @@ def train(model, train_loader, val_loader):
                 draw_conv_filters(epoch + 1, i * batch_size, model.conv1)
 
         epoch_accuracy = running_correct_epoch / n_dataset_size * 100
-        print("Train accuracy after epoch = %.2f" % epoch_accuracy)
+        print("Train accuracy after epoch = %.4f" % epoch_accuracy)
         writer.add_scalar('epoch train accuracy', epoch_accuracy, epoch)
 
         valid_acc, valid_loss_avg = evaluate("Validation", val_loader, model, criterion)

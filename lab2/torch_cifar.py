@@ -15,11 +15,12 @@ RUNS_DIR = Path(__file__).parent / 'runs' / 'CIFAR'
 
 writer = SummaryWriter(str(RUNS_DIR))
 
-num_epochs = 8
+num_epochs = 20
 batch_size = 50
-smoothing_param = 1e-4
 learning_rate = 1e-3
-gamma_param = 1e-1
+weight_decay = 5e-4
+betas = (0.9, 0.995)
+gamma_param = 0.995
 val_size = 5000
 
 mean = (0.4913997551666284, 0.48215855929893703, 0.4465309133731618)
@@ -96,9 +97,9 @@ def draw_conv_filters(epoch, step, layer):
 
 # noinspection DuplicatedCode
 def train(model, train_loader, val_loader):
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=betas)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=gamma_param)
-    criterion = nn.CrossEntropyLoss(label_smoothing=smoothing_param)
+    criterion = nn.CrossEntropyLoss()
 
     running_loss = 0.0
     running_correct = 0
@@ -140,10 +141,6 @@ def train(model, train_loader, val_loader):
 
                 draw_conv_filters(epoch + 1, i * batch_size, model.convolution[0])
 
-        new_lr = scheduler.get_last_lr()[-1]
-        print(f'New Learning rate = {new_lr}.')
-        writer.add_scalar('learning rate', new_lr, epoch)
-
         scheduler.step()
 
         valid_acc, valid_loss_avg = evaluate("Training after epoch", train_loader, model, criterion)
@@ -153,6 +150,10 @@ def train(model, train_loader, val_loader):
         valid_acc, valid_loss_avg = evaluate("Validation", val_loader, model, criterion)
         writer.add_scalar('accuracy/validate', valid_acc, epoch)
         writer.add_scalar('loss/validate', valid_loss_avg, epoch)
+
+        new_lr = scheduler.get_last_lr()[-1]
+        print(f'New Learning rate = {new_lr}.')
+        writer.add_scalar('learning rate', new_lr, epoch)
 
     return model
 

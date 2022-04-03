@@ -158,6 +158,24 @@ def train(model, train_loader, val_loader):
     return model
 
 
+def eval_perf_multi(Y, Y_):
+    pr = []
+    n = max(Y_) + 1
+    M = np.bincount(n * Y_ + Y, minlength=n * n).reshape(n, n)
+    for i in range(n):
+        tp_i = M[i, i]
+        fn_i = np.sum(M[i, :]) - tp_i
+        fp_i = np.sum(M[:, i]) - tp_i
+        tn_i = np.sum(M) - fp_i - fn_i - tp_i
+        recall_i = tp_i / (tp_i + fn_i)
+        precision_i = tp_i / (tp_i + fp_i)
+        pr.append((recall_i, precision_i))
+
+    accuracy = np.trace(M) / np.sum(M)
+
+    return accuracy, pr, M
+
+
 # noinspection DuplicatedCode
 def evaluate(name, data_loader, model, loss_function):
     print("\nRunning evaluation: ", name)
@@ -165,8 +183,10 @@ def evaluate(name, data_loader, model, loss_function):
     assert num_examples % batch_size == 0
 
     num_batches = num_examples // batch_size
-    cnt_correct = 0
     loss_avg = 0
+
+    predicted_eval = []
+    true_eval = []
 
     with torch.no_grad():
         for i, (images, labels) in enumerate(data_loader):
@@ -178,15 +198,19 @@ def evaluate(name, data_loader, model, loss_function):
             loss_avg += loss_val
 
             _, predicted = torch.max(outputs.data, 1)
-            cnt_correct += (predicted == labels).sum().item()
 
-    valid_acc = cnt_correct / num_examples * 100
-    loss_avg /= num_batches
+            predicted_eval.append(predicted.detach().cpu().numpy())
+            true_eval.append(labels.detach().cpu().numpy())
 
-    print(name + " accuracy = %.2f" % valid_acc)
-    print(name + " avg loss = %.2f\n" % loss_avg)
+        predicted_eval = np.reshape(predicted_eval, -1)
+        true_eval = np.reshape(true_eval, -1)
+        acc, pr, M = eval_perf_multi(predicted_eval, true_eval)
+        loss_avg /= num_batches
 
-    return valid_acc, loss_avg
+        print(name + " accuracy = %.4f" % acc * 100)
+        print(name + " avg loss = %.4f\n" % loss_avg)
+
+        return acc * 100, loss_avg
 
 
 def draw_image(img, title):

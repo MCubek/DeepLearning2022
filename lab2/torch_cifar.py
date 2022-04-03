@@ -20,8 +20,8 @@ batch_size = 50
 learning_rate = 1e-3
 weight_decay = 5e-4
 betas = (0.9, 0.995)
-gamma_param = 0.995
-val_size = 5000
+gamma_param = 0.95
+val_size = 2500
 
 mean = (0.4913997551666284, 0.48215855929893703, 0.4465309133731618)
 std = (0.24703225141799082, 0.24348516474564, 0.26158783926049628)
@@ -105,6 +105,9 @@ def train(model, train_loader, val_loader):
     running_correct = 0
     n_total_steps = len(train_loader)
     n_dataset_size = len(train_loader.dataset)
+
+    # Filters first
+    draw_conv_filters(0, 0, model.convolution[0])
 
     for epoch in range(num_epochs):
 
@@ -207,7 +210,7 @@ def evaluate(name, data_loader, model, loss_function):
         acc, pr, M = eval_perf_multi(predicted_eval, true_eval)
         loss_avg /= num_batches
 
-        print(name + " accuracy = %.4f" % acc * 100)
+        print(name + " accuracy = %.4f" % (acc * 100))
         print(name + " avg loss = %.4f\n" % loss_avg)
 
         return acc * 100, loss_avg
@@ -255,15 +258,18 @@ def print_20_highest_loss(model, data_loader):
 
 
 if __name__ == '__main__':
-    transform = transforms.Compose(
+    train_transform = transforms.Compose(
+        [transforms.ToTensor(), transforms.RandomHorizontalFlip(), transforms.RandomRotation(degrees=10),
+         transforms.ColorJitter(brightness=0.5), norm])
+    test_transform = transforms.Compose(
         [transforms.ToTensor(), norm])
     train_dataset, test_dataset = [torchvision.datasets.CIFAR10(root=str(DATA_DIR),
                                                                 train=True,
-                                                                transform=transform,
+                                                                transform=train_transform,
                                                                 download=True),
                                    torchvision.datasets.CIFAR10(root=str(DATA_DIR),
                                                                 train=False,
-                                                                transform=transform)]
+                                                                transform=test_transform)]
 
     train_dataset, val_dataset = torch.utils.data.random_split(train_dataset,
                                                                [len(train_dataset.data) - val_size, val_size])

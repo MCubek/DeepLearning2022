@@ -8,9 +8,6 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 
-import skimage as ski
-import skimage.io
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 DATA_DIR = Path(__file__).parent / 'datasets' / 'CIFAR'
@@ -20,10 +17,19 @@ writer = SummaryWriter(str(RUNS_DIR))
 
 num_epochs = 8
 batch_size = 50
-smoothing_param = 1e-3
-learning_rate = 0.001
-gamma_param = 1e-3
+smoothing_param = 1e-4
+learning_rate = 1e-3
+gamma_param = 1e-1
 val_size = 5000
+
+mean = (0.4913997551666284, 0.48215855929893703, 0.4465309133731618)
+std = (0.24703225141799082, 0.24348516474564, 0.26158783926049628)
+
+norm = transforms.Normalize(mean, std)
+unnorm = transforms.Normalize(
+    mean=[-m / s for m, s in zip(mean, std)],
+    std=[1 / s for s in std]
+)
 
 
 def calculate_conv_output(image_width, pool_kernel, pool_stride):
@@ -134,7 +140,9 @@ def train(model, train_loader, val_loader):
 
                 draw_conv_filters(epoch + 1, i * batch_size, model.convolution[0])
 
-        writer.add_scalar('learning rate', scheduler.get_last_lr(), epoch)
+        new_lr = scheduler.get_last_lr()[-1]
+        print(f'New Learning rate = {new_lr}.')
+        writer.add_scalar('learning rate', new_lr, epoch)
 
         scheduler.step()
 
@@ -180,17 +188,50 @@ def evaluate(name, data_loader, model, loss_function):
     return valid_acc, loss_avg
 
 
-def draw_image(img, mean, std):
-    img = img.transpose(1, 2, 0)
-    img *= std
-    img += mean
-    img = img.astype(np.uint8)
-    ski.io.imshow(img)
-    ski.io.show()
+def draw_image(img, title):
+    img = unnorm(img).numpy()
+    img = (img * 255).astype(np.uint8)
+    grid = torchvision.utils.make_grid(torch.from_numpy(img))
+    writer.add_image(title, grid)
+
+
+def print_20_highest_loss(model, data_loader):
+    data = None
+    loss = None
+    predicted = None
+    true = None
+
+    loss_function = nn.CrossEntropyLoss(reduction='none')
+
+    with torch.no_grad():
+        for i, (images, labels) in enumerate(data_loader):
+            images = images.to(device)
+            labels = labels.to(device)
+
+            outputs = model.forward(images)
+            loss_val = loss_function(outputs, labels)
+
+            if data is None:
+                data = images.detach().cpu()
+                loss = loss_val.detach().cpu()
+                predicted = outputs.detach().cpu()
+                true = labels.detach().cpu()
+            else:
+                data = torch.cat((data, images.detach().cpu()), 0)
+                loss = torch.cat((loss, loss_val.detach().cpu()), 0)
+                predicted = torch.cat((predicted, outputs.detach().cpu()), 0)
+                true = torch.cat((true, labels.detach().cpu()), 0)
+
+        top_i = torch.topk(loss, 20)[1].detach().numpy()
+
+        for count, i in enumerate(top_i):
+            draw_image(data[i],
+                       f'Worst No{count}: true: {true[i].data}, predicted: {torch.topk(predicted[i, :], 3)[1].data.tolist()}.')
 
 
 if __name__ == '__main__':
-    transform = transforms.ToTensor()
+    transform = transforms.Compose(
+        [transforms.ToTensor(), norm])
     train_dataset, test_dataset = [torchvision.datasets.CIFAR10(root=str(DATA_DIR),
                                                                 train=True,
                                                                 transform=transform,
@@ -214,10 +255,13 @@ if __name__ == '__main__':
                                               batch_size=batch_size,
                                               shuffle=False)
 
+    test_loader_no_batch = torch.utils.data.DataLoader(dataset=test_dataset,
+                                                       batch_size=len(test_dataset),
+                                                       shuffle=False)
+
     # Sample data
     example_data = iter(test_loader).__next__()[0]
-    img_grid = torchvision.utils.make_grid(example_data)
-    writer.add_image('cifar_images', img_grid)
+    draw_image(example_data.detach(), 'cifar_images')
 
     model = CovolutionalCifarModel(3, 16, 32, 256, 128, 10, pool_kernel=3, pool_stride=2, image_width=32).to(device)
     writer.add_graph(model, example_data)
@@ -225,5 +269,7 @@ if __name__ == '__main__':
     train(model, train_loader, val_loader)
 
     class_preds, class_labels = evaluate('Test', test_loader, model, nn.CrossEntropyLoss())
+
+    print_20_highest_loss(model, test_loader_no_batch)
 
     writer.close()

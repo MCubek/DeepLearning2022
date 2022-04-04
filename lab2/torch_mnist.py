@@ -15,7 +15,7 @@ RUNS_DIR = Path(__file__).parent / 'runs' / 'MNIST'
 
 writer = SummaryWriter(str(RUNS_DIR))
 
-num_epochs = 8
+num_epochs = 10
 batch_size = 50
 learning_rate_policy = {1: 1e-1, 3: 1e-2, 5: 1e-3, 7: 1e-4}
 weight_decay = 1e-3
@@ -62,7 +62,7 @@ class CovolutionalModel(nn.Module):
 
 # noinspection DuplicatedCode
 def draw_conv_filters(epoch, step, layer):
-    w = layer.weight.data.detach().numpy()
+    w = layer.weight.data.detach().cpu().numpy()
     num_filters, C, k = w.shape[:3]
 
     w = w.reshape(num_filters, C, k, k)
@@ -208,9 +208,10 @@ if __name__ == '__main__':
     img_grid = torchvision.utils.make_grid(example_data)
     writer.add_image('mnist_images', img_grid)
 
-    model = CovolutionalModel(1, 16, 32, 512, 10).to(device)
+    model = CovolutionalModel(1, 16, 32, 512, 10)
     writer.add_graph(model, example_data)
 
+    model = model.to(device)
     train(model, train_loader, val_loader)
 
     class_preds, class_labels = evaluate('Test', test_loader, model, nn.CrossEntropyLoss())

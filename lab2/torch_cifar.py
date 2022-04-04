@@ -15,13 +15,13 @@ RUNS_DIR = Path(__file__).parent / 'runs' / 'CIFAR'
 
 writer = SummaryWriter(str(RUNS_DIR))
 
-num_epochs = 20
+num_epochs = 40
 batch_size = 50
-learning_rate = 1e-3
+learning_rate = 3e-3
 weight_decay = 5e-4
 betas = (0.9, 0.995)
 gamma_param = 0.95
-val_size = 2500
+val_size = 4000
 
 mean = (0.4913997551666284, 0.48215855929893703, 0.4465309133731618)
 std = (0.24703225141799082, 0.24348516474564, 0.26158783926049628)
@@ -109,7 +109,10 @@ def train(model, train_loader, val_loader):
     # Filters first
     draw_conv_filters(0, 0, model.convolution[0])
 
+    new_lr = learning_rate
+
     for epoch in range(num_epochs):
+        writer.add_scalar('learning rate', new_lr, epoch)
 
         for i, (images, labels) in enumerate(train_loader):
             images = images.to(device)
@@ -156,7 +159,6 @@ def train(model, train_loader, val_loader):
 
         new_lr = scheduler.get_last_lr()[-1]
         print(f'New Learning rate = {new_lr}.')
-        writer.add_scalar('learning rate', new_lr, epoch)
 
     return model
 

@@ -1,0 +1,10 @@
+Train accuracy after epoch = 99.2745
+
+Running evaluation:  Validation
+Validation accuracy = 99.00
+Validation avg loss = 0.03
+
+
+Running evaluation:  Test
+Test accuracy = 99.00
+Test avg loss = 0.03

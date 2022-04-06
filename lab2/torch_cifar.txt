@@ -1,0 +1,13 @@
+Running evaluation:  Validation
+Validation accuracy = 76.4800
+Validation avg loss = 0.8215
+
+New Learning rate = 0.00036603234127322915.
+
+Running evaluation:  Test
+Test accuracy = 78.6800
+Test avg loss = 0.7192
+
+Top item number 1 is ship.
+Top item number 2 is car.
+Top item number 3 is truck.

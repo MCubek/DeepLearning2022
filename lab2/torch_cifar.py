@@ -20,7 +20,7 @@ batch_size = 50
 learning_rate = 1e-3
 weight_decay = 5e-4
 betas = (0.9, 0.995)
-gamma_param = 0.995
+gamma_param = 0.99
 val_size = 5000
 
 mean = (0.4913997551666284, 0.48215855929893703, 0.4465309133731618)

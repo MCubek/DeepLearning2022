@@ -15,7 +15,7 @@ RUNS_DIR = Path(__file__).parent / 'runs' / 'CIFAR'
 
 writer = SummaryWriter(str(RUNS_DIR))
 
-num_epochs = 50
+num_epochs = 100
 batch_size = 50
 learning_rate = 1e-3
 weight_decay = 5e-4
@@ -31,6 +31,9 @@ unnorm = transforms.Normalize(
     mean=[-m / s for m, s in zip(mean, std)],
     std=[1 / s for s in std]
 )
+
+classes = ('plane', 'car', 'bird', 'cat',
+           'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 
 def calculate_conv_output(image_width, pool_kernel, pool_stride):
@@ -88,7 +91,7 @@ def draw_conv_filters(epoch, step, layer):
         r = int(i / cols) * (k + border)
         c = int(i % cols) * (k + border)
         img[r:r + k, c:c + k, :] = w[:, :, :, i]
-    filename = '%s_epoch_%02d_step_%06d' % ('torch_conv1', epoch, step)
+    filename = '%s_epoch_%02d_step_%06d' % ('cifar_conv1', epoch, step)
     img = np.moveaxis(img, -1, 0)
     img = (img * 255).astype(np.uint8)
     grid = torchvision.utils.make_grid(torch.from_numpy(img))
@@ -149,11 +152,11 @@ def train(model, train_loader, val_loader):
 
         scheduler.step()
 
-        valid_acc, valid_loss_avg = evaluate("Training after epoch", train_loader, model, criterion)
+        valid_acc, valid_loss_avg, M = evaluate("Training after epoch", train_loader, model, criterion)
         writer.add_scalar('accuracy/train epoch', valid_acc, epoch)
         writer.add_scalar('loss/train epoch', valid_loss_avg, epoch)
 
-        valid_acc, valid_loss_avg = evaluate("Validation", val_loader, model, criterion)
+        valid_acc, valid_loss_avg, M = evaluate("Validation", val_loader, model, criterion)
         writer.add_scalar('accuracy/validate', valid_acc, epoch)
         writer.add_scalar('loss/validate', valid_loss_avg, epoch)
 
@@ -215,7 +218,7 @@ def evaluate(name, data_loader, model, loss_function):
         print(name + " accuracy = %.4f" % (acc * 100))
         print(name + " avg loss = %.4f\n" % loss_avg)
 
-        return acc * 100, loss_avg
+        return acc * 100, loss_avg, M
 
 
 def draw_image(img, title):
@@ -256,7 +259,20 @@ def print_20_highest_loss(model, data_loader):
 
         for count, i in enumerate(top_i):
             draw_image(data[i],
-                       f'Worst No{count}: true: {true[i].data}, predicted: {torch.topk(predicted[i, :], 3)[1].data.tolist()}.')
+                       f'Worst No{count}: True: {classes[true[i].data]}, Predicted: {list(classes[x] for x in torch.topk(predicted[i, :], 3)[1].data.tolist())}.')
+
+
+def print_top_3(M):
+    m_range = range(len(M[0, :]))
+
+    acc = []
+    for i in m_range:
+        acc.append((i, M[i, i]))
+
+    acc.sort(key=lambda x: x[1], reverse=True)
+
+    for i, item in enumerate(acc[:3]):
+        print(f'Top item number {i + 1} is {classes[item[0]]}.')
 
 
 if __name__ == '__main__':
@@ -303,8 +319,10 @@ if __name__ == '__main__':
 
     train(model, train_loader, val_loader)
 
-    class_preds, class_labels = evaluate('Test', test_loader, model, nn.CrossEntropyLoss())
+    class_preds, class_labels, M = evaluate('Test', test_loader, model, nn.CrossEntropyLoss())
 
     print_20_highest_loss(model, test_loader_no_batch)
+
+    print_top_3(M)
 
     writer.close()

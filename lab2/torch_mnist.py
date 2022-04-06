@@ -79,7 +79,7 @@ def draw_conv_filters(epoch, step, layer):
             r = int(j / cols) * (k + border)
             c = int(j % cols) * (k + border)
             img[r:r + k, c:c + k] = w[j, i] * 255
-        filename = '%s_epoch_%02d_step_%06d_input_%03d' % ('torch_conv1', epoch, step, i)
+        filename = '%s_epoch_%02d_step_%06d_input_%03d' % ('mnist_conv1', epoch, step, i)
         grid = torchvision.utils.make_grid(torch.from_numpy(img))
         writer.add_image(filename, grid, step)
 

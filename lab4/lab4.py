@@ -1,54 +1,78 @@
-from torch.utils.data import Dataset
-from collections import defaultdict
-from random import choice
-import torchvision
+import time
 
+import torch.optim
+from torch.utils.data import DataLoader
 
-class MNISTMetricDataset(Dataset):
-    def __init__(self, root="/tmp/mnist/", split='train'):
-        super().__init__()
-        assert split in ['train', 'test', 'traineval']
-        self.root = root
-        self.split = split
-        mnist_ds = torchvision.datasets.MNIST(self.root, train='train' in split, download=True)
-        self.images, self.targets = mnist_ds.data.float() / 255., mnist_ds.targets
-        self.classes = list(range(10))
+from dataset import MNISTMetricDataset
+from model import SimpleMetricEmbedding
+from utils import train, evaluate, compute_representations
 
-        self.target2indices = defaultdict(list)
-        for i in range(len(self.images)):
-            self.target2indices[self.targets[i].item()] += [i]
-
-    def _sample_negative(self, index):
-        target_id = self.targets[index].item()
-        classes_choice = list(self.target2indices.keys())
-        classes_choice.remove(target_id)
-        class_choice = choice(classes_choice)
-        index_choice = choice(self.target2indices[class_choice])
-        return index_choice
-
-    def _sample_positive(self, index):
-        target_id = self.targets[index].item()
-        rand_index = choice(self.target2indices[target_id])
-        return rand_index
-
-    def __getitem__(self, index):
-        anchor = self.images[index].unsqueeze(0)
-        target_id = self.targets[index].item()
-        if self.split in ['traineval', 'val', 'test']:
-            return anchor, target_id
-        else:
-            positive = self._sample_positive(index)
-            negative = self._sample_negative(index)
-            positive = self.images[positive]
-            negative = self.images[negative]
-            return anchor, positive.unsqueeze(0), negative.unsqueeze(0), target_id
-
-    def __len__(self):
-        return len(self.images)
-
+EVAL_ON_TEST = True
+EVAL_ON_TRAIN = False
 
 if __name__ == '__main__':
-    ds = MNISTMetricDataset()
-    ds.split="aaa"
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print(f"= Using device {device}")
 
-    ds[5345]
+    # CHANGE ACCORDING TO YOUR PREFERENCE
+    mnist_download_root = "./mnist/"
+    ds_train = MNISTMetricDataset(mnist_download_root, split='train')
+    ds_test = MNISTMetricDataset(mnist_download_root, split='test')
+    ds_traineval = MNISTMetricDataset(mnist_download_root, split='traineval')
+
+    num_classes = 10
+
+    print(f"> Loaded {len(ds_train)} training images!")
+    print(f"> Loaded {len(ds_test)} validation images!")
+
+    train_loader = DataLoader(
+        ds_train,
+        batch_size=64,
+        shuffle=True,
+        pin_memory=True,
+        num_workers=4,
+        drop_last=True
+    )
+
+    test_loader = DataLoader(
+        ds_test,
+        batch_size=1,
+        shuffle=False,
+        pin_memory=True,
+        num_workers=1
+    )
+
+    traineval_loader = DataLoader(
+        ds_traineval,
+        batch_size=1,
+        shuffle=False,
+        pin_memory=True,
+        num_workers=1
+    )
+
+    emb_size = 32
+    model = SimpleMetricEmbedding(1, emb_size).to(device)
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=1e-3
+    )
+
+    epochs = 3
+    for epoch in range(epochs):
+        print(f"Epoch: {epoch}")
+        t0 = time.time_ns()
+        train_loss = train(model, optimizer, train_loader, device)
+        print(f"Mean Loss in Epoch {epoch}: {train_loss:.3f}")
+        if EVAL_ON_TEST or EVAL_ON_TRAIN:
+            print("Computing mean representations for evaluation...")
+            representations = compute_representations(model, train_loader, num_classes, emb_size, device)
+        if EVAL_ON_TRAIN:
+            print("Evaluating on training set...")
+            acc1 = evaluate(model, representations, traineval_loader, device)
+            print(f"Epoch {epoch}: Train Top1 Acc: {round(acc1 * 100, 2)}%")
+        if EVAL_ON_TEST:
+            print("Evaluating on test set...")
+            acc1 = evaluate(model, representations, test_loader, device)
+            print(f"Epoch {epoch}: Test Accuracy: {acc1 * 100:.2f}%")
+        t1 = time.time_ns()
+        print(f"Epoch time (sec): {(t1 - t0) / 10 ** 9:.1f}")

@@ -4,11 +4,12 @@ import torch.optim
 from torch.utils.data import DataLoader
 
 from dataset import MNISTMetricDataset
-from model import SimpleMetricEmbedding
-from utils import train, evaluate, compute_representations
+from model import SimpleMetricEmbedding, IdentityModel
+from utils import train, evaluate, compute_representations, train_identity
 
 EVAL_ON_TEST = True
 EVAL_ON_TRAIN = False
+MODEL_IDENTITY = False
 
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -50,18 +51,28 @@ if __name__ == '__main__':
         num_workers=1
     )
 
-    emb_size = 32
-    model = SimpleMetricEmbedding(1, emb_size).to(device)
-    optimizer = torch.optim.Adam(
-        model.parameters(),
-        lr=1e-3
-    )
+    if MODEL_IDENTITY:
+        emb_size = 28*28
+        model = IdentityModel().to(device)
+    else:
+        emb_size = 32
+        model = SimpleMetricEmbedding(1, emb_size).to(device)
+        optimizer = torch.optim.Adam(
+            model.parameters(),
+            lr=1e-3
+        )
+
 
     epochs = 3
     for epoch in range(epochs):
         print(f"Epoch: {epoch}")
         t0 = time.time_ns()
-        train_loss = train(model, optimizer, train_loader, device)
+
+        if MODEL_IDENTITY:
+            train_loss = train_identity(model, train_loader, device)
+        else:
+            train_loss = train(model, optimizer, train_loader, device)
+
         print(f"Mean Loss in Epoch {epoch}: {train_loss:.3f}")
         if EVAL_ON_TEST or EVAL_ON_TRAIN:
             print("Computing mean representations for evaluation...")

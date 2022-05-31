@@ -20,6 +20,18 @@ def train(model, optimizer, loader, device='cuda'):
     return np.mean(losses)
 
 
+def train_identity(model, loader, device='cuda'):
+    losses = []
+    model.train()
+    for i, data in enumerate(loader):
+        anchor, positive, negative, _ = data
+        loss = model.loss(anchor.to(device), positive.to(device), negative.to(device))
+        losses.append(loss.cpu().item())
+        if i % PRINT_LOSS_N == 0:
+            print(f"Iter: {i}, Mean Loss: {np.mean(losses):.3f}")
+    return np.mean(losses)
+
+
 def compute_representations(model, loader, identities_count, emb_size=32, device='cuda'):
     model.eval()
     representations = defaultdict(list)

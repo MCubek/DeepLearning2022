@@ -52,7 +52,7 @@ if __name__ == '__main__':
     )
 
     if MODEL_IDENTITY:
-        emb_size = 28*28
+        emb_size = 28 * 28
         model = IdentityModel().to(device)
     else:
         emb_size = 32
@@ -61,7 +61,6 @@ if __name__ == '__main__':
             model.parameters(),
             lr=1e-3
         )
-
 
     epochs = 3
     for epoch in range(epochs):
@@ -87,3 +86,9 @@ if __name__ == '__main__':
             print(f"Epoch {epoch}: Test Accuracy: {acc1 * 100:.2f}%")
         t1 = time.time_ns()
         print(f"Epoch time (sec): {(t1 - t0) / 10 ** 9:.1f}")
+
+    if MODEL_IDENTITY:
+        torch.save(model, 'models/MNIST_model_identity.pt')
+    else:
+        torch.save(model, 'models/MNIST_model.pt')
+    print('Model params saved to disk.')

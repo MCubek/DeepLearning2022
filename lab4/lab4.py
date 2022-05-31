@@ -10,6 +10,7 @@ from utils import train, evaluate, compute_representations, train_identity
 EVAL_ON_TEST = True
 EVAL_ON_TRAIN = False
 MODEL_IDENTITY = False
+WITHOUT_CLASS = True
 
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -18,6 +19,7 @@ if __name__ == '__main__':
     # CHANGE ACCORDING TO YOUR PREFERENCE
     mnist_download_root = "./mnist/"
     ds_train = MNISTMetricDataset(mnist_download_root, split='train')
+    ds_train_without_class = MNISTMetricDataset(mnist_download_root, split='train', remove_class=0)
     ds_test = MNISTMetricDataset(mnist_download_root, split='test')
     ds_traineval = MNISTMetricDataset(mnist_download_root, split='traineval')
 
@@ -26,8 +28,17 @@ if __name__ == '__main__':
     print(f"> Loaded {len(ds_train)} training images!")
     print(f"> Loaded {len(ds_test)} validation images!")
 
-    train_loader = DataLoader(
+    train_loader_full = DataLoader(
         ds_train,
+        batch_size=64,
+        shuffle=True,
+        pin_memory=True,
+        num_workers=4,
+        drop_last=True
+    )
+
+    train_loader_without_class = DataLoader(
+        ds_train_without_class,
         batch_size=64,
         shuffle=True,
         pin_memory=True,
@@ -62,6 +73,11 @@ if __name__ == '__main__':
             lr=1e-3
         )
 
+    if WITHOUT_CLASS:
+        train_loader = train_loader_without_class
+    else:
+        train_loader = train_loader_full
+
     epochs = 3
     for epoch in range(epochs):
         print(f"Epoch: {epoch}")
@@ -75,7 +91,7 @@ if __name__ == '__main__':
         print(f"Mean Loss in Epoch {epoch}: {train_loss:.3f}")
         if EVAL_ON_TEST or EVAL_ON_TRAIN:
             print("Computing mean representations for evaluation...")
-            representations = compute_representations(model, train_loader, num_classes, emb_size, device)
+            representations = compute_representations(model, train_loader_full, num_classes, emb_size, device)
         if EVAL_ON_TRAIN:
             print("Evaluating on training set...")
             acc1 = evaluate(model, representations, traineval_loader, device)
@@ -90,5 +106,9 @@ if __name__ == '__main__':
     if MODEL_IDENTITY:
         torch.save(model, 'models/MNIST_model_identity.pt')
     else:
-        torch.save(model, 'models/MNIST_model.pt')
+        if WITHOUT_CLASS:
+            torch.save(model, 'models/MNIST_model_without_class.pt')
+        else:
+            torch.save(model, 'models/MNIST_model.pt')
+
     print('Model params saved to disk.')

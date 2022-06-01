@@ -1,0 +1,54 @@
+Without class 0
+
+/opt/homebrew/Caskroom/miniforge/base/envs/pytorchNigthly/bin/python /Users/matejc/Dev/PyCharm/duboko1Lab/lab4/lab4.py
+= Using device cpu
+> Loaded 60000 training images!
+> Loaded 10000 validation images!
+Epoch: 0
+Iter: 0, Mean Loss: 0.826
+Iter: 100, Mean Loss: 0.205
+Iter: 200, Mean Loss: 0.141
+Iter: 300, Mean Loss: 0.114
+Iter: 400, Mean Loss: 0.097
+Iter: 500, Mean Loss: 0.087
+Iter: 600, Mean Loss: 0.079
+Iter: 700, Mean Loss: 0.073
+Iter: 800, Mean Loss: 0.068
+Mean Loss in Epoch 0: 0.066
+Computing mean representations for evaluation...
+Evaluating on test set...
+Epoch 0: Test Accuracy: 95.00%
+Epoch time (sec): 35.7
+Epoch: 1
+Iter: 0, Mean Loss: 0.031
+Iter: 100, Mean Loss: 0.031
+Iter: 200, Mean Loss: 0.031
+Iter: 300, Mean Loss: 0.030
+Iter: 400, Mean Loss: 0.030
+Iter: 500, Mean Loss: 0.029
+Iter: 600, Mean Loss: 0.029
+Iter: 700, Mean Loss: 0.028
+Iter: 800, Mean Loss: 0.028
+Mean Loss in Epoch 1: 0.028
+Computing mean representations for evaluation...
+Evaluating on test set...
+Epoch 1: Test Accuracy: 95.23%
+Epoch time (sec): 35.9
+Epoch: 2
+Iter: 0, Mean Loss: 0.076
+Iter: 100, Mean Loss: 0.023
+Iter: 200, Mean Loss: 0.025
+Iter: 300, Mean Loss: 0.025
+Iter: 400, Mean Loss: 0.026
+Iter: 500, Mean Loss: 0.025
+Iter: 600, Mean Loss: 0.024
+Iter: 700, Mean Loss: 0.023
+Iter: 800, Mean Loss: 0.023
+Mean Loss in Epoch 2: 0.023
+Computing mean representations for evaluation...
+Evaluating on test set...
+Epoch 2: Test Accuracy: 96.36%
+Epoch time (sec): 37.1
+Model params saved to disk.
+
+Process finished with exit code 0

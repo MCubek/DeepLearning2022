@@ -1,3 +1,5 @@
+Normal
+
 /opt/homebrew/Caskroom/miniforge/base/envs/pytorchNigthly/bin/python /Users/matejc/Dev/PyCharm/duboko1Lab/lab4/lab4.py
 = Using device cpu
 > Loaded 60000 training images!

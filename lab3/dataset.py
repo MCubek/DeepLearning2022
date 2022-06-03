@@ -90,6 +90,9 @@ class NLPDataset(Dataset):
     def __len__(self):
         return len(self.instances)
 
+    def get_embedding_matrix(self, matrix_path, vector_size=300):
+        return self.text_vocab.generate_embedding_matrix(vector_size, matrix_path)
+
     @classmethod
     def from_file(cls, data_path):
         instances = generate_instances_from_csv(data_path)
@@ -133,7 +136,7 @@ def pad_collate_fn(batch, pad_index=0):
     texts, labels = zip(*batch)  # Assuming the instance is in tuple-like form
     lengths = torch.tensor([len(text) for text in texts])  # Needed for later
     padded_texts = torch.nn.utils.rnn.pad_sequence(texts, batch_first=True, padding_value=pad_index)
-    labels = torch.tensor(labels)
+    labels = torch.tensor(labels, dtype=torch.float32)
     return padded_texts, labels, lengths
 
 

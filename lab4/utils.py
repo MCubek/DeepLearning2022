@@ -2,12 +2,14 @@ import numpy as np
 import torch
 from collections import defaultdict
 
+import lab3.lab_utils
+
 PRINT_LOSS_N = 100
 
 
 def train(model, optimizer, loader, device='cuda'):
     losses = []
-    model.train()
+    lab3.lab_utils.train()
     for i, data in enumerate(loader):
         anchor, positive, negative, _ = data
         optimizer.zero_grad()
@@ -22,7 +24,7 @@ def train(model, optimizer, loader, device='cuda'):
 
 def train_identity(model, loader, device='cuda'):
     losses = []
-    model.train()
+    lab3.lab_utils.train()
     for i, data in enumerate(loader):
         anchor, positive, negative, _ = data
         loss = model.loss(anchor.to(device), positive.to(device), negative.to(device))

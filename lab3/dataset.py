@@ -161,3 +161,16 @@ if __name__ == '__main__':
     print(f"Texts: {texts}")
     print(f"Labels: {labels}")
     print(f"Lengths: {lengths}")
+
+    text_vocab = train_dataset.text_vocab
+    embedding = text_vocab.generate_embedding_matrix(300, 'data/sst_glove_6b_300d.txt')
+    train_dataloader = DataLoader(dataset=train_dataset, batch_size=2, shuffle=True, collate_fn=pad_collate_fn)
+
+    for batch in train_dataloader:
+        batch_x, batch_y, batch_lens = batch
+        print(batch_x.size())
+        batch_x_embedded = embedding(batch_x)
+        print(batch_x_embedded.size())
+        batch_x_embedded_averaged = batch_x_embedded.mean(dim=1)
+        print(batch_x_embedded_averaged.size())
+        break

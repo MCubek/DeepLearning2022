@@ -7,8 +7,6 @@ from torch import nn
 from lab3.lab_utils import load_dataset, VECTOR_PATH, evaluate, load_data_loaders, train
 from lab3.models import BaselineModel
 
-PRINT_LOSS_N = 100
-
 
 @dataclass
 class Args:
@@ -19,7 +17,7 @@ class Args:
     seed: int
     epochs: int
     lr: float
-    clip: float
+    max_norm: float
 
 
 args = Args(300,
@@ -41,7 +39,7 @@ if __name__ == '__main__':
                                                                             test_dataset,
                                                                             args)
 
-    embedding_matrix = train_dataset.get_embedding_matrix(matrix_path=VECTOR_PATH)
+    embedding_matrix = train_dataset.get_embedding_matrix(VECTOR_PATH)
 
     model = BaselineModel(embedding_matrix, args.embedding_size)
 
@@ -50,7 +48,7 @@ if __name__ == '__main__':
 
     for epoch in range(args.epochs):
         print(f'Epoch {epoch + 1}.')
-        train(model, train_dataloader, optimizer, criterion, args)
+        train(model, train_dataloader, optimizer, criterion, max_norm=args.max_norm)
         print(f'Evaluating on validation dataset:')
         evaluate(model, valid_dataloader, criterion)
 

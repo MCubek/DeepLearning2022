@@ -3,7 +3,9 @@ import torch
 from torch.utils.data import DataLoader
 
 from lab3 import dataset
-from lab3.zad_2_baseline import PRINT_LOSS_N
+
+
+PRINT_LOSS_N = 100
 
 TRAIN_PATH = 'data/sst_train_raw.csv'
 VALID_PATH = 'data/sst_valid_raw.csv'
@@ -55,14 +57,15 @@ def evaluate(model, data, criterion):
     print(f"Confusion Matrix:\n{confusion_matrix}")
 
 
-def train(model, data, optimizer, criterion, args):
+def train(model, data, optimizer, criterion, max_norm):
     model.train()
-    for batch_num, (data, target, lens) in enumerate(data):
+    for batch_num, (data, target, _) in enumerate(data):
         model.zero_grad()
         logits = model(data)
         loss = criterion(logits, target)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+        if max_norm is not None:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
         optimizer.step()
         if batch_num % PRINT_LOSS_N == 0:
             print(f"Iter: {batch_num}, Loss: {loss.item():.3f}")

@@ -136,7 +136,7 @@ def pad_collate_fn(batch, pad_index=0):
     texts, labels = zip(*batch)  # Assuming the instance is in tuple-like form
     lengths = torch.tensor([len(text) for text in texts])  # Needed for later
     padded_texts = torch.nn.utils.rnn.pad_sequence(texts, batch_first=True, padding_value=pad_index)
-    labels = torch.tensor(labels)
+    labels = torch.tensor(labels, dtype=torch.float32)
     return padded_texts, labels, lengths
 
 

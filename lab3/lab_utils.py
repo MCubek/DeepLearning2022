@@ -14,8 +14,12 @@ VECTOR_PATH = 'data/sst_glove_6b_300d.txt'
 
 def load_dataset():
     train_dataset = dataset.NLPDataset.from_file(TRAIN_PATH)
-    test_dataset = dataset.NLPDataset.from_file(TEST_PATH)
-    valid_dataset = dataset.NLPDataset.from_file(VALID_PATH)
+
+    text_vocab = train_dataset.text_vocab
+    label_vocab = train_dataset.label_vocab
+
+    test_dataset = dataset.NLPDataset.from_file(TEST_PATH, text_vocab, label_vocab)
+    valid_dataset = dataset.NLPDataset.from_file(VALID_PATH, text_vocab, label_vocab)
 
     return train_dataset, valid_dataset, test_dataset
 

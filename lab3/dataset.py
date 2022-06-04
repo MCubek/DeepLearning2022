@@ -94,9 +94,11 @@ class NLPDataset(Dataset):
         return self.text_vocab.generate_embedding_matrix(vector_size, matrix_path)
 
     @classmethod
-    def from_file(cls, data_path):
+    def from_file(cls, data_path, token_vocab=None, label_vocab=None):
         instances = generate_instances_from_csv(data_path)
-        token_vocab, label_vocab = generate_vocab_from_instances(instances)
+
+        if token_vocab is None or label_vocab is None:
+            token_vocab, label_vocab = generate_vocab_from_instances(instances)
 
         return cls(instances, token_vocab, label_vocab)
 

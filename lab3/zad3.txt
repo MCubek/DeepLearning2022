@@ -1,0 +1,41 @@
+
+Seed = 2022
+Accuracy = 0.79
+F1 Score = 0.80
+Avg Loss = 0.48
+Confusion Matrix =
+[[318. 126.]
+ [ 60. 368.]]
+        
+Seed = 1999
+Accuracy = 0.75
+F1 Score = 0.79
+Avg Loss = 0.53
+Confusion Matrix =
+[[254. 190.]
+ [ 28. 400.]]
+        
+Seed = 2023
+Accuracy = 0.74
+F1 Score = 0.70
+Avg Loss = 0.65
+Confusion Matrix =
+[[374.  70.]
+ [157. 271.]]
+        
+Seed = 9999
+Accuracy = 0.76
+F1 Score = 0.76
+Avg Loss = 0.54
+Confusion Matrix =
+[[347.  97.]
+ [108. 320.]]
+        
+Seed = 1111
+Accuracy = 0.71
+F1 Score = 0.75
+Avg Loss = 0.59
+Confusion Matrix =
+[[230. 214.]
+ [ 42. 386.]]
+        

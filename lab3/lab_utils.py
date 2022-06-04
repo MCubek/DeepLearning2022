@@ -12,8 +12,9 @@ TEST_PATH = 'data/sst_test_raw.csv'
 VECTOR_PATH = 'data/sst_glove_6b_300d.txt'
 
 
-def load_dataset():
-    train_dataset = dataset.NLPDataset.from_file(TRAIN_PATH)
+def load_dataset(vocab_min_freq=0, vocab_max_size=-1):
+    train_dataset = dataset.NLPDataset.from_file(TRAIN_PATH, vocab_max_size=vocab_max_size,
+                                                 vocab_min_freq=vocab_min_freq)
 
     text_vocab = train_dataset.text_vocab
     label_vocab = train_dataset.label_vocab
@@ -59,8 +60,15 @@ def evaluate(model, data, criterion):
     print(f"Avg Loss {avg_loss:.2f}")
     print(f"Confusion Matrix:\n{confusion_matrix}")
 
+    return {
+        "accuracy": accuracy,
+        "f1_score": f1_score,
+        "avg_loss": avg_loss,
+        "confusion_matrix": confusion_matrix
+    }
 
-def train(model, data, optimizer, criterion, max_norm):
+
+def train(model, data, optimizer, criterion, max_norm, print_progress=True):
     model.train()
     for batch_num, (data, target, lengths) in enumerate(data):
         model.zero_grad()
@@ -70,5 +78,5 @@ def train(model, data, optimizer, criterion, max_norm):
         if max_norm is not None:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
         optimizer.step()
-        if batch_num % PRINT_LOSS_N == 0:
+        if print_progress and batch_num % PRINT_LOSS_N == 0:
             print(f"Iter: {batch_num}, Loss: {loss.item():.3f}")

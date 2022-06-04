@@ -45,7 +45,7 @@ class Vocab:
     def decode(self, indexes):
         return [self.itos.get(x, "<UNK>") for x in indexes]
 
-    def generate_embedding_matrix(self, vector_size=300, matrix_path=None):
+    def generate_embedding_matrix(self, vector_size=300, matrix_path=None, freeze=True):
         vectors = {}
 
         if matrix_path:
@@ -72,7 +72,7 @@ class Vocab:
             else:
                 embedding_matrix[index] = torch.tensor(vectors[word])
 
-        return torch.nn.Embedding.from_pretrained(embedding_matrix, freeze=True, padding_idx=0)
+        return torch.nn.Embedding.from_pretrained(embedding_matrix, freeze=freeze, padding_idx=0)
 
 
 class NLPDataset(Dataset):
@@ -90,15 +90,15 @@ class NLPDataset(Dataset):
     def __len__(self):
         return len(self.instances)
 
-    def get_embedding_matrix(self, matrix_path, vector_size=300):
-        return self.text_vocab.generate_embedding_matrix(vector_size, matrix_path)
+    def get_embedding_matrix(self, matrix_path, vector_size=300, freeze=True):
+        return self.text_vocab.generate_embedding_matrix(vector_size, matrix_path, freeze=freeze)
 
     @classmethod
-    def from_file(cls, data_path, token_vocab=None, label_vocab=None):
+    def from_file(cls, data_path, token_vocab=None, label_vocab=None, vocab_min_freq=0, vocab_max_size=-1):
         instances = generate_instances_from_csv(data_path)
 
         if token_vocab is None or label_vocab is None:
-            token_vocab, label_vocab = generate_vocab_from_instances(instances)
+            token_vocab, label_vocab = generate_vocab_from_instances(instances, vocab_max_size, vocab_min_freq)
 
         return cls(instances, token_vocab, label_vocab)
 

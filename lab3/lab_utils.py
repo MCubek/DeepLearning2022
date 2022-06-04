@@ -4,7 +4,6 @@ from torch.utils.data import DataLoader
 
 from lab3 import dataset
 
-
 PRINT_LOSS_N = 100
 
 TRAIN_PATH = 'data/sst_train_raw.csv'
@@ -35,8 +34,8 @@ def evaluate(model, data, criterion):
     losses = []
 
     with torch.no_grad():
-        for batch_num, (data, target, _) in enumerate(data):
-            logits = model(data)
+        for batch_num, (data, target, lengths) in enumerate(data):
+            logits = model.forward(data, lengths)
             loss = criterion(logits, target)
             losses.append(loss.item())
 
@@ -59,9 +58,9 @@ def evaluate(model, data, criterion):
 
 def train(model, data, optimizer, criterion, max_norm):
     model.train()
-    for batch_num, (data, target, _) in enumerate(data):
+    for batch_num, (data, target, lengths) in enumerate(data):
         model.zero_grad()
-        logits = model(data)
+        logits = model.forward(data, lengths)
         loss = criterion(logits, target)
         loss.backward()
         if max_norm is not None:

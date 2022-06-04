@@ -136,7 +136,7 @@ def pad_collate_fn(batch, pad_index=0):
     texts, labels = zip(*batch)  # Assuming the instance is in tuple-like form
     lengths = torch.tensor([len(text) for text in texts])  # Needed for later
     padded_texts = torch.nn.utils.rnn.pad_sequence(texts, batch_first=True, padding_value=pad_index)
-    labels = torch.tensor(labels, dtype=torch.float32)
+    labels = torch.tensor(labels)
     return padded_texts, labels, lengths
 
 
@@ -161,16 +161,3 @@ if __name__ == '__main__':
     print(f"Texts: {texts}")
     print(f"Labels: {labels}")
     print(f"Lengths: {lengths}")
-
-    text_vocab = train_dataset.text_vocab
-    embedding = text_vocab.generate_embedding_matrix(300, 'data/sst_glove_6b_300d.txt')
-    train_dataloader = DataLoader(dataset=train_dataset, batch_size=2, shuffle=True, collate_fn=pad_collate_fn)
-
-    for batch in train_dataloader:
-        batch_x, batch_y, batch_lens = batch
-        print(batch_x.size())
-        batch_x_embedded = embedding(batch_x)
-        print(batch_x_embedded.size())
-        batch_x_embedded_averaged = batch_x_embedded.mean(dim=1)
-        print(batch_x_embedded_averaged.size())
-        break

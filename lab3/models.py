@@ -11,7 +11,7 @@ class BaselineModel(nn.Module):
         self.fc_2 = nn.Linear(150, 150)
         self.fc_3 = nn.Linear(150, 1)
 
-    def forward(self, x):
+    def forward(self, x, length):
         h = self.embedding_matrix(x)
         h = h.mean(dim=1)
         h = self.fc_1(h)

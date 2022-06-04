@@ -90,7 +90,7 @@ class NLPDataset(Dataset):
     def __len__(self):
         return len(self.instances)
 
-    def get_embedding_matrix(self, matrix_path, vector_size=300, freeze=True):
+    def get_embedding_matrix(self, matrix_path=None, vector_size=300, freeze=True):
         return self.text_vocab.generate_embedding_matrix(vector_size, matrix_path, freeze=freeze)
 
     @classmethod

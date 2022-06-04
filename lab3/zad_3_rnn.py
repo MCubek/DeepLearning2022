@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 from lab3.lab_utils import load_dataset, VECTOR_PATH, evaluate, load_data_loaders, train
-from lab3.models import BaselineModel, RnnModel
+from lab3.models import RnnModel
 
 
 @dataclass
@@ -75,7 +75,9 @@ if __name__ == '__main__':
 
         embedding_matrix = train_dataset.get_embedding_matrix(VECTOR_PATH)
 
-        model = RnnModel(embedding_matrix, args)
+        model = RnnModel(embedding_matrix, args.embedding_size, args.rnn_hidden_size,
+                         args.rnn_num_layers, args.rnn_dropout, args.rnn_bidirectional,
+                         args.rnn_type)
 
         criterion = nn.BCEWithLogitsLoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)

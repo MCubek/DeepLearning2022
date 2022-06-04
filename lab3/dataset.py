@@ -1,163 +1,153 @@
-from collections import Counter
-from dataclasses import dataclass
-
 import torch
 from torch.utils.data import Dataset, DataLoader
+from collections import Counter, namedtuple
+import pandas as pd
+
+Instance = namedtuple('Instance', ['x', 'y'])
+
+a = Instance('this is a good sentence'.split(), 'positive')
 
 
-@dataclass
-class Instance:
-    tokens: []
-    target_class: str
-
-
-class Vocab:
-    PADDING = "<PAD>", 0
-    UNKNOWN = "<UNK>", 1
-    special = [PADDING[0], UNKNOWN[0]]
-
-    def __init__(self, frequencies: dict, maxsize=-1, min_freq=0, is_label=False):
-        self.stoi = {}
-        self.itos = {}
-
-        special_counter = 0
-        if not is_label:
-            for item in Vocab.special:
-                self.stoi[item] = special_counter
-                self.itos[special_counter] = item
-                special_counter += 1
-
-        for i, (item, count) in enumerate(sorted(frequencies.items(), key=lambda x: x[1], reverse=True)):
-            if maxsize != -1 and i > maxsize:
-                break
-            if count < min_freq:
-                continue
-
-            self.stoi[item] = i + special_counter
-            self.itos[i + special_counter] = item
-
-    def encode_list(self, tokens):
-        return torch.tensor([self.stoi.get(x, Vocab.UNKNOWN[1]) for x in tokens])
-
-    def encode_item(self, token):
-        return torch.tensor(self.stoi.get(token))
-
-    def decode(self, indexes):
-        return [self.itos.get(x, "<UNK>") for x in indexes]
-
-    def generate_embedding_matrix(self, vector_size=300, matrix_path=None):
-        vectors = {}
-
-        if matrix_path:
-            file = open(matrix_path, 'r')
-            lines = file.readlines()
-
-            for line in lines:
-                split = line.split()
-                token = split[0]
-                vector_representations = split[1:]
-
-                vectors[token] = [float(x) for x in vector_representations]
-
-            file.close()
-
-        embedding_matrix = torch.randn(len(self.stoi), vector_size)
-
-        for word, index in self.stoi.items():
-            if word not in vectors:
-                continue
-
-            if word == Vocab.PADDING[0]:
-                embedding_matrix[index] = torch.zeros(vector_size)
-            else:
-                embedding_matrix[index] = torch.tensor(vectors[word])
-
-        return torch.nn.Embedding.from_pretrained(embedding_matrix, freeze=True, padding_idx=0)
+def token_generator(sentences):
+    for sentence in sentences:
+        for token in sentence:
+            yield token
 
 
 class NLPDataset(Dataset):
 
-    def __init__(self, instances: list[Instance], text_vocab: Vocab, label_vocab: Vocab):
-        self.text_vocab = text_vocab
-        self.label_vocab = label_vocab
+    def __init__(self, instances, text_vocab=None, labels_vocab=None, **hyperparams):
+        max_size = hyperparams.get('max_size', -1)
+        min_freq = hyperparams.get('min_freq', 1)
+
+        if text_vocab is None:
+            frequencies = Counter(token_generator(i[0] for i in instances))
+            self.text_vocab = Vocab(frequencies, max_size, min_freq)
+        else:
+            self.text_vocab = text_vocab
+        if labels_vocab is None:
+            self.labels_vocab = Vocab(Counter(i[1] for i in instances), pad_and_unk=False)
+        else:
+            self.labels_vocab = labels_vocab
 
         self.instances = instances
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> Instance:
         instance = self.instances[index]
-        return self.text_vocab.encode_list(instance.tokens), self.label_vocab.encode_item(instance.target_class)
+        return self.text_vocab.encode(instance[0]), self.labels_vocab.encode(instance[1])
 
     def __len__(self):
         return len(self.instances)
 
-    def get_embedding_matrix(self, matrix_path, vector_size=300):
-        return self.text_vocab.generate_embedding_matrix(vector_size, matrix_path)
-
     @classmethod
-    def from_file(cls, data_path):
-        instances = generate_instances_from_csv(data_path)
-        token_vocab, label_vocab = generate_vocab_from_instances(instances)
-
-        return cls(instances, token_vocab, label_vocab)
-
-
-def generate_instances_from_csv(csv_path) -> list[Instance]:
-    instances = []
-
-    with open(csv_path, 'r') as file:
-        lines = file.readlines()
-        for line in lines:
-            split = line.split(",")
-            words = [x.strip() for x in split[0].split()]
-            target = split[1].strip()
-
-            instances.append(Instance(words, target))
-
-    return instances
+    def from_file(cls, file_path, text_vocab=None, labels_vocab=None):
+        df = pd.read_csv(file_path, header=0, names=['sent', 'label'])
+        return cls(
+            [Instance(row['sent'].split(), row['label'].strip()) for i, row in df.iterrows()],
+            text_vocab=text_vocab,
+            labels_vocab=labels_vocab
+        )
 
 
-def generate_vocab_from_instances(instances: list[Instance], maxsize=-1, min_freq=0) -> (Vocab, Vocab):
-    token_frequencies = Counter()
-    label_frequencies = Counter()
+class Vocab:
 
-    for instance in instances:
-        label_frequencies[instance.target_class] += 1
+    PAD = '<PAD>'
+    UNK = '<UNK>'
+    PAD_IDX = 0
+    UNK_IDX = 1
 
-        for token in instance.tokens:
-            token_frequencies[token] += 1
+    def __init__(self, frequencies, max_size=-1, min_freq=1, pad_and_unk=True):
+        if pad_and_unk is True:
+            self.stoi = {Vocab.PAD: Vocab.PAD_IDX, Vocab.UNK: Vocab.UNK_IDX}
+            self.itos = {Vocab.PAD_IDX: Vocab.PAD, Vocab.UNK_IDX: Vocab.UNK}
+        else:
+            self.stoi = dict()
+            self.itos = dict()
 
-    token_vocab = Vocab(token_frequencies, maxsize, min_freq)
-    label_vocab = Vocab(label_frequencies, maxsize, min_freq, is_label=True)
+        for i, entry in enumerate(sorted(frequencies.items(), key=lambda x: -x[1])):
+            token, freq = entry
+            # if max_size is set and there is already max_size elements, or if freq is lower than min_freq
+            if (max_size != -1 and i >= max_size) or freq < min_freq:
+                break
 
-    return token_vocab, label_vocab
+            index = i+2 if pad_and_unk is True else i
+            self.stoi[token] = index
+            self.itos[index] = token
+
+    def encode(self, tokens):
+        if isinstance(tokens, str):
+            return torch.tensor(self.stoi.get(tokens, Vocab.UNK_IDX))
+
+        return torch.tensor([self.stoi.get(token, Vocab.UNK_IDX) for token in tokens])
+
+    def decode(self, indices):
+        try:
+            return [self.itos.get(int(idx), Vocab.UNK) for idx in indices]
+        except TypeError:
+            return self.itos.get(int(indices), Vocab.UNK)
+
+    def create_embedding_matrix(self, embedding_size=300, path_to_embeddings=None):
+        embeddings = torch.randn(len(self.stoi), embedding_size)
+
+        if path_to_embeddings is not None:
+            embedding_vocab = dict()
+            with open(path_to_embeddings, 'r', encoding='utf-8') as f:
+                for line in f.readlines():
+                    line = line.split()
+                    embedding_vocab[line[0]] = line[1:]
+
+            for token, index in self.stoi.items():
+                embedding = embedding_vocab.get(token, None)
+                if embedding is not None:
+                    embedding = torch.tensor([float(e) for e in embedding], dtype=torch.float32)
+                    embeddings[index] = embedding
+        # embedding of <PAD> must be zeros
+        embeddings[Vocab.PAD_IDX, :] = 0.0
+        return torch.nn.Embedding.from_pretrained(embeddings, freeze=True, padding_idx=0)
 
 
-def pad_collate_fn(batch, pad_index=0):
-    texts, labels = zip(*batch)  # Assuming the instance is in tuple-like form
-    lengths = torch.tensor([len(text) for text in texts])  # Needed for later
+def pad_collate_fn(batch, pad_index=0, to_cuda=torch.cuda.is_available()):
+    texts, labels = zip(*batch)
+    lengths = torch.tensor([len(text) for text in texts], dtype=torch.int32)
     padded_texts = torch.nn.utils.rnn.pad_sequence(texts, batch_first=True, padding_value=pad_index)
     labels = torch.tensor(labels, dtype=torch.float32)
+    if to_cuda is True:
+        lengths = lengths.to('cuda')
+        padded_texts = padded_texts.to('cuda')
+        labels = labels.to('cuda')
     return padded_texts, labels, lengths
 
 
 if __name__ == '__main__':
-    batch_size = 2  # Only for demonstrative purposes
-    shuffle = False  # Only for demonstrative purposes
     train_dataset = NLPDataset.from_file('data/sst_train_raw.csv')
-    train_dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size,
-                                  shuffle=shuffle, collate_fn=pad_collate_fn)
-    texts, labels, lengths = next(iter(train_dataloader))
+    # instance_text, instance_label = train_dataset.instances[2]
+    # print(f"Text: {instance_text}")
+    # print(f"Label: {instance_label}")
+    #
+    # numericalized_text, numericalized_label = train_dataset[2]
+    # print(f"Numericalized text: {numericalized_text}")
+    # print(f"Numericalized label: {numericalized_label}")
 
-    instance_text = train_dataset.instances[3].tokens
-    instance_label = train_dataset.instances[3].target_class
+    # train_dataloader = DataLoader(dataset=train_dataset, batch_size=2, shuffle=False, collate_fn=pad_collate_fn)
+    # texts, labels, lengths = next(iter(train_dataloader))
+    # print(f"Texts: {texts}")
+    # print(f"Labels: {labels}")
+    # print(f"Lengths: {lengths}")
+    #
+    # text = train_dataset.instances[1][0]
+    # decoded_text = train_dataset.vocab.decode(texts[1])
+    # print()
+    # print(text)
+    # print(decoded_text)
+    text_vocab = train_dataset.text_vocab
+    embedding = text_vocab.create_embedding_matrix(path_to_embeddings='data/sst_glove_6b_300d.txt')
+    train_dataloader = DataLoader(dataset=train_dataset, batch_size=2, shuffle=True, collate_fn=pad_collate_fn)
 
-    print(f"Text: {instance_text}")
-    print(f"Label: {instance_label}")
-
-    numericalized_text, numericalized_label = train_dataset[3]
-    print(f"Numericalized text: {numericalized_text}")
-    print(f"Numericalized label: {numericalized_label}")
-
-    print(f"Texts: {texts}")
-    print(f"Labels: {labels}")
-    print(f"Lengths: {lengths}")
+    for batch in train_dataloader:
+        batch_x, batch_y, batch_lens = batch
+        print(batch_x.size())
+        batch_x_embedded = embedding(batch_x)
+        print(batch_x_embedded.size())
+        batch_x_embedded_averaged = batch_x_embedded.mean(dim=1)
+        print(batch_x_embedded_averaged.size())
+        break

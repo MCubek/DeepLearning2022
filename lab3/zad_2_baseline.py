@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from lab3 import dataset
 from lab3.lab_utils import load_dataset, VECTOR_PATH, evaluate, load_data_loaders, train
 from lab3.models import BaselineModel
 
@@ -33,13 +34,17 @@ if __name__ == '__main__':
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    train_dataset, valid_dataset, test_dataset = load_dataset()
+    train_dataset = dataset.NLPDataset.from_file('data/sst_train_raw.csv')
+    text_vocab = train_dataset.text_vocab
+    labels_vocab = train_dataset.labels_vocab
+    test_dataset = dataset.NLPDataset.from_file('data/sst_test_raw.csv', text_vocab, labels_vocab)
+    val_dataset = dataset.NLPDataset.from_file('data/sst_valid_raw.csv', text_vocab, labels_vocab)
     train_dataloader, valid_dataloader, test_dataloader = load_data_loaders(train_dataset,
-                                                                            valid_dataset,
+                                                                            val_dataset,
                                                                             test_dataset,
                                                                             args)
-
-    embedding_matrix = train_dataset.get_embedding_matrix(VECTOR_PATH)
+    text_vocab = train_dataset.text_vocab
+    embedding_matrix = text_vocab.create_embedding_matrix(args.embedding_size, path_to_embeddings='data/sst_glove_6b_300d.txt')
 
     model = BaselineModel(embedding_matrix, args.embedding_size)
 
